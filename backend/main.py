@@ -147,6 +147,10 @@ class AppSettings(BaseModel):
     worker_processed_sleep_seconds: int = 10
     worker_backend_retry_seconds: int = 15
     worker_album_audio_only_strict: bool = True
+    spotify_client_id: str = ""
+    spotify_client_secret: str = ""
+    spotify_oauth_client_id: str = ""
+    spotify_oauth_redirect_uri: str = ""
     last_auto_fetch_date: str | None = None
 
 
@@ -163,6 +167,19 @@ class AppSettingsUpdate(BaseModel):
     worker_processed_sleep_seconds: int = Field(default=10, ge=1, le=600)
     worker_backend_retry_seconds: int = Field(default=15, ge=5, le=600)
     worker_album_audio_only_strict: bool = True
+    spotify_client_id: str = ""
+    spotify_client_secret: str = ""
+    spotify_oauth_client_id: str = ""
+    spotify_oauth_redirect_uri: str = ""
+
+
+class ArtistsImportPayload(BaseModel):
+    artists: list[ArtistCreate]
+    replace: bool = False
+
+
+class YTMusicAuthImportPayload(BaseModel):
+    auth_json: dict
 
 
 def _ensure_data_file(path: Path) -> None:
@@ -228,6 +245,10 @@ def _default_settings_payload() -> dict:
 
     return AppSettings(
         playlist_id=os.getenv("YTMUSIC_PLAYLIST_ID", "").strip(),
+        spotify_client_id=os.getenv("SPOTIFY_CLIENT_ID", "").strip(),
+        spotify_client_secret=os.getenv("SPOTIFY_CLIENT_SECRET", "").strip(),
+        spotify_oauth_client_id=os.getenv("REACT_APP_SPOTIFY_CLIENT_ID", "").strip(),
+        spotify_oauth_redirect_uri=os.getenv("REACT_APP_SPOTIFY_REDIRECT_URI", "").strip(),
         spotify_include_groups=os.getenv("SPOTIFY_INCLUDE_GROUPS", "album,single").strip() or "album,single",
         spotify_market=os.getenv("SPOTIFY_MARKET", "").strip(),
         local_fetch_spacing_ms=max(_env_int("LOCAL_FETCH_SPACING_MS", 120), 0),
@@ -285,8 +306,11 @@ def _effective_local_fetch_spacing_ms() -> int:
 
 
 def _get_spotify_credentials() -> tuple[str, str]:
-    client_id = os.getenv("SPOTIFY_CLIENT_ID", "").strip()
-    client_secret = os.getenv("SPOTIFY_CLIENT_SECRET", "").strip()
+    with _settings_lock:
+        settings = _read_settings()
+
+    client_id = (settings.spotify_client_id or "").strip() or os.getenv("SPOTIFY_CLIENT_ID", "").strip()
+    client_secret = (settings.spotify_client_secret or "").strip() or os.getenv("SPOTIFY_CLIENT_SECRET", "").strip()
     if not client_id or not client_secret:
         raise HTTPException(
             status_code=500,
@@ -866,6 +890,10 @@ def update_settings(payload: AppSettingsUpdate) -> AppSettings:
                 "worker_processed_sleep_seconds": payload.worker_processed_sleep_seconds,
                 "worker_backend_retry_seconds": payload.worker_backend_retry_seconds,
                 "worker_album_audio_only_strict": payload.worker_album_audio_only_strict,
+                "spotify_client_id": payload.spotify_client_id.strip(),
+                "spotify_client_secret": payload.spotify_client_secret.strip(),
+                "spotify_oauth_client_id": payload.spotify_oauth_client_id.strip(),
+                "spotify_oauth_redirect_uri": payload.spotify_oauth_redirect_uri.strip(),
             }
         )
         _write_settings(updated)
@@ -890,6 +918,27 @@ def create_artist(artist: ArtistCreate) -> dict:
     artists.sort(key=lambda item: str(item.get("name", "")).lower())
     _write_json_list(ARTISTS_FILE, artists)
     return new_artist
+
+
+@app.post("/artistas/import")
+def import_artists(payload: ArtistsImportPayload) -> dict:
+    existing = _read_json_list(ARTISTS_FILE)
+    imported = [artist.model_dump() for artist in payload.artists]
+
+    if payload.replace:
+        merged = imported
+    else:
+        by_id = {str(item.get("id", "")).strip(): item for item in existing if str(item.get("id", "")).strip()}
+        for item in imported:
+            artist_id = str(item.get("id", "")).strip()
+            if not artist_id:
+                continue
+            by_id[artist_id] = item
+        merged = list(by_id.values())
+
+    merged.sort(key=lambda item: str(item.get("name", "")).lower())
+    _write_json_list(ARTISTS_FILE, merged)
+    return {"status": "ok", "total": len(merged)}
 
 
 @app.delete("/artistas/{artist_id}")
@@ -1261,3 +1310,14 @@ def delete_error(error_id: str) -> dict[str, str]:
 
     _write_json_list(ERRORS_FILE, updated_errors)
     return {"status": "deleted"}
+
+
+@app.post("/settings/ytmusic-auth/import")
+def import_ytmusic_auth(payload: YTMusicAuthImportPayload) -> dict[str, str]:
+    auth_path = Path(os.getenv("YTMUSIC_AUTH_FILE", "/data/ytmusic_auth.json")).resolve()
+    auth_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        auth_path.write_text(json.dumps(payload.auth_json, ensure_ascii=True, indent=2) + "\n")
+    except PermissionError as exc:
+        raise HTTPException(status_code=500, detail=f"No write permission to {auth_path}") from exc
+    return {"status": "ok"}

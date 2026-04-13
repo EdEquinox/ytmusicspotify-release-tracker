@@ -4,13 +4,14 @@ import { Button, Input, VerticalLayout, Header, Content, ButtonLink } from 'comp
 import {
   createArtist,
   deleteArtist,
+  getSettings,
   listArtists,
   refreshArtists,
   searchSpotifyArtists,
 } from 'backendApi'
 
-const SPOTIFY_CLIENT_ID = process.env.REACT_APP_SPOTIFY_CLIENT_ID || ''
-const SPOTIFY_REDIRECT_URI =
+const FALLBACK_SPOTIFY_CLIENT_ID = process.env.REACT_APP_SPOTIFY_CLIENT_ID || ''
+const FALLBACK_SPOTIFY_REDIRECT_URI =
   process.env.REACT_APP_SPOTIFY_REDIRECT_URI || `${window.location.origin}/artists`
 const SPOTIFY_IMPORT_STATE = 'spotify-artists-import'
 const SPOTIFY_CODE_VERIFIER_KEY = 'spotifyImportCodeVerifier'
@@ -32,10 +33,10 @@ async function createCodeChallenge(codeVerifier) {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-async function exchangeCodeForToken(code, redirectUri, codeVerifier) {
+async function exchangeCodeForToken(code, clientId, redirectUri, codeVerifier) {
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
-    client_id: SPOTIFY_CLIENT_ID,
+    client_id: clientId,
     code,
     redirect_uri: redirectUri,
     code_verifier: codeVerifier,
@@ -92,6 +93,8 @@ function ManageArtists() {
   const [refreshingArtists, setRefreshingArtists] = useState(false)
   const [importing, setImporting] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [spotifyClientId, setSpotifyClientId] = useState(FALLBACK_SPOTIFY_CLIENT_ID)
+  const [spotifyRedirectUri, setSpotifyRedirectUri] = useState(FALLBACK_SPOTIFY_REDIRECT_URI)
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
 
@@ -113,6 +116,19 @@ function ManageArtists() {
   }, [])
 
   useEffect(() => {
+    async function loadOAuthSettings() {
+      try {
+        const settings = await getSettings()
+        if (settings.spotify_oauth_client_id) setSpotifyClientId(settings.spotify_oauth_client_id)
+        if (settings.spotify_oauth_redirect_uri) setSpotifyRedirectUri(settings.spotify_oauth_redirect_uri)
+      } catch {
+        // Keep env fallback when settings are unavailable.
+      }
+    }
+    loadOAuthSettings()
+  }, [])
+
+  useEffect(() => {
     const runImportCallback = async () => {
       const params = new URLSearchParams(location.search)
       const code = params.get('code')
@@ -131,7 +147,12 @@ function ManageArtists() {
       setInfoMessage('')
 
       try {
-        const accessToken = await exchangeCodeForToken(code, SPOTIFY_REDIRECT_URI, codeVerifier)
+        const accessToken = await exchangeCodeForToken(
+          code,
+          spotifyClientId,
+          spotifyRedirectUri,
+          codeVerifier
+        )
         const followedArtists = await getFollowedArtists(accessToken)
 
         let added = 0
@@ -158,7 +179,7 @@ function ManageArtists() {
     }
 
     runImportCallback()
-  }, [location.search])
+  }, [location.search, spotifyClientId, spotifyRedirectUri])
 
   const onDelete = async (artistId) => {
     setError('')
@@ -201,8 +222,8 @@ function ManageArtists() {
   }
 
   const onImportFollowedArtists = async () => {
-    if (!SPOTIFY_CLIENT_ID) {
-      setError('Define REACT_APP_SPOTIFY_CLIENT_ID para usar a importacao.')
+    if (!spotifyClientId) {
+      setError('Define Spotify OAuth Client ID em Settings para usar a importacao.')
       return
     }
 
@@ -217,9 +238,9 @@ function ManageArtists() {
 
       const authParams = new URLSearchParams({
         response_type: 'code',
-        client_id: SPOTIFY_CLIENT_ID,
+        client_id: spotifyClientId,
         scope: 'user-follow-read',
-        redirect_uri: SPOTIFY_REDIRECT_URI,
+        redirect_uri: spotifyRedirectUri,
         code_challenge_method: 'S256',
         code_challenge: codeChallenge,
         state: SPOTIFY_IMPORT_STATE,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button, ButtonLink, Content, Header, Input, VerticalLayout } from 'components/common'
-import { getSettings, updateSettings } from 'backendApi'
+import { getSettings, importArtists, importYTMusicAuth, updateSettings } from 'backendApi'
 
 const SPOTIFY_GROUP_OPTIONS = ['album', 'single', 'compilation', 'appears_on']
 const SPOTIFY_MARKET_OPTIONS = ['', 'PT', 'BR', 'US', 'GB', 'ES', 'FR', 'DE', 'IT', 'JP']
@@ -21,12 +21,19 @@ function Settings() {
     worker_processed_sleep_seconds: 10,
     worker_backend_retry_seconds: 15,
     worker_album_audio_only_strict: true,
+    spotify_client_id: '',
+    spotify_client_secret: '',
+    spotify_oauth_client_id: '',
+    spotify_oauth_redirect_uri: '',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
   const [lastAutoFetchDate, setLastAutoFetchDate] = useState('')
+  const [importingArtistsJson, setImportingArtistsJson] = useState(false)
+  const [importingAuthJson, setImportingAuthJson] = useState(false)
+  const [importingSettingsJson, setImportingSettingsJson] = useState(false)
 
   const selectedIncludeGroups = String(form.spotify_include_groups || '')
     .split(',')
@@ -74,6 +81,10 @@ function Settings() {
             settings.worker_album_audio_only_strict === undefined
               ? true
               : Boolean(settings.worker_album_audio_only_strict),
+          spotify_client_id: settings.spotify_client_id || '',
+          spotify_client_secret: settings.spotify_client_secret || '',
+          spotify_oauth_client_id: settings.spotify_oauth_client_id || '',
+          spotify_oauth_redirect_uri: settings.spotify_oauth_redirect_uri || '',
         })
         setLastAutoFetchDate(settings.last_auto_fetch_date || '')
       } catch (err) {
@@ -108,6 +119,10 @@ function Settings() {
         worker_processed_sleep_seconds: Number(form.worker_processed_sleep_seconds || 10),
         worker_backend_retry_seconds: Number(form.worker_backend_retry_seconds || 15),
         worker_album_audio_only_strict: Boolean(form.worker_album_audio_only_strict),
+        spotify_client_id: form.spotify_client_id,
+        spotify_client_secret: form.spotify_client_secret,
+        spotify_oauth_client_id: form.spotify_oauth_client_id,
+        spotify_oauth_redirect_uri: form.spotify_oauth_redirect_uri,
       })
       setInfoMessage('Settings guardadas com sucesso.')
       setLastAutoFetchDate(saved.last_auto_fetch_date || '')
@@ -115,6 +130,93 @@ function Settings() {
       setError(err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const onImportArtistsJson = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setImportingArtistsJson(true)
+    setError('')
+    setInfoMessage('')
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      if (!Array.isArray(parsed)) throw new Error('O ficheiro de artistas deve conter um array JSON.')
+      await importArtists({ artists: parsed, replace: false })
+      setInfoMessage(`Importacao de artistas concluida (${parsed.length} entradas lidas).`)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setImportingArtistsJson(false)
+      event.target.value = ''
+    }
+  }
+
+  const onImportYTMusicAuthJson = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setImportingAuthJson(true)
+    setError('')
+    setInfoMessage('')
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('O ficheiro de auth deve conter um objeto JSON.')
+      }
+      await importYTMusicAuth(parsed)
+      setInfoMessage('Auth do YTMusic importada com sucesso.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setImportingAuthJson(false)
+      event.target.value = ''
+    }
+  }
+
+  const onImportSettingsJson = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setImportingSettingsJson(true)
+    setError('')
+    setInfoMessage('')
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('O ficheiro de settings deve conter um objeto JSON.')
+      }
+      const saved = await updateSettings(parsed)
+      setForm((previous) => ({
+        ...previous,
+        playlist_id: saved.playlist_id || '',
+        auto_fetch_enabled: Boolean(saved.auto_fetch_enabled),
+        auto_fetch_time: saved.auto_fetch_time || '04:00',
+        auto_fetch_window_days: Number(saved.auto_fetch_window_days || 1),
+        spotify_include_groups: saved.spotify_include_groups || 'album,single',
+        spotify_market: saved.spotify_market || '',
+        local_fetch_spacing_ms: Number(saved.local_fetch_spacing_ms || 120),
+        release_workers: Number(saved.release_workers || 10),
+        worker_idle_seconds: Number(saved.worker_idle_seconds || 20),
+        worker_processed_sleep_seconds: Number(saved.worker_processed_sleep_seconds || 10),
+        worker_backend_retry_seconds: Number(saved.worker_backend_retry_seconds || 15),
+        worker_album_audio_only_strict:
+          saved.worker_album_audio_only_strict === undefined
+            ? true
+            : Boolean(saved.worker_album_audio_only_strict),
+        spotify_client_id: saved.spotify_client_id || '',
+        spotify_client_secret: saved.spotify_client_secret || '',
+        spotify_oauth_client_id: saved.spotify_oauth_client_id || '',
+        spotify_oauth_redirect_uri: saved.spotify_oauth_redirect_uri || '',
+      }))
+      setLastAutoFetchDate(saved.last_auto_fetch_date || '')
+      setInfoMessage('Settings importadas com sucesso.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setImportingSettingsJson(false)
+      event.target.value = ''
     }
   }
 
@@ -169,6 +271,50 @@ function Settings() {
               </div>
             </div>
 
+            <div className="columns is-multiline mb-2">
+              <div className="column is-6-desktop is-12-tablet">
+                <label className="label has-text-light">Spotify Client ID (backend)</label>
+                <Input
+                  value={form.spotify_client_id}
+                  onChange={(event) => setForm((prev) => ({ ...prev, spotify_client_id: event.target.value }))}
+                  placeholder="Client ID para API Spotify no backend"
+                />
+              </div>
+              <div className="column is-6-desktop is-12-tablet">
+                <label className="label has-text-light">Spotify Client Secret (backend)</label>
+                <Input
+                  value={form.spotify_client_secret}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, spotify_client_secret: event.target.value }))
+                  }
+                  placeholder="Client Secret para API Spotify no backend"
+                />
+              </div>
+            </div>
+
+            <div className="columns is-multiline mb-2">
+              <div className="column is-6-desktop is-12-tablet">
+                <label className="label has-text-light">Spotify OAuth Client ID (frontend)</label>
+                <Input
+                  value={form.spotify_oauth_client_id}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, spotify_oauth_client_id: event.target.value }))
+                  }
+                  placeholder="Client ID para importar artistas seguidos"
+                />
+              </div>
+              <div className="column is-6-desktop is-12-tablet">
+                <label className="label has-text-light">Spotify OAuth Redirect URI</label>
+                <Input
+                  value={form.spotify_oauth_redirect_uri}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, spotify_oauth_redirect_uri: event.target.value }))
+                  }
+                  placeholder="Ex: http://SEU_IP:3001/artists"
+                />
+              </div>
+            </div>
+
             <div className="field mb-4">
               <label className="checkbox has-text-light">
                 <input
@@ -180,6 +326,24 @@ function Settings() {
                 />{' '}
                 Ativar fetch automatico diario
               </label>
+            </div>
+
+            <div className="columns is-multiline mb-4">
+              <div className="column is-6-desktop is-12-tablet">
+                <label className="label has-text-light">Importar JSON de artistas</label>
+                <input type="file" accept=".json,application/json" onChange={onImportArtistsJson} />
+                {importingArtistsJson && <p className="has-text-grey is-size-7 mt-1">A importar artistas...</p>}
+              </div>
+              <div className="column is-6-desktop is-12-tablet">
+                <label className="label has-text-light">Importar JSON de auth YTMusic</label>
+                <input type="file" accept=".json,application/json" onChange={onImportYTMusicAuthJson} />
+                {importingAuthJson && <p className="has-text-grey is-size-7 mt-1">A importar auth...</p>}
+              </div>
+              <div className="column is-6-desktop is-12-tablet">
+                <label className="label has-text-light">Importar JSON de settings</label>
+                <input type="file" accept=".json,application/json" onChange={onImportSettingsJson} />
+                {importingSettingsJson && <p className="has-text-grey is-size-7 mt-1">A importar settings...</p>}
+              </div>
             </div>
 
             <div className="columns is-multiline mb-2">

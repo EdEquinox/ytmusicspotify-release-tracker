@@ -24,6 +24,8 @@ export const refreshArtists = (onlyMissingImages = false) =>
   request(`/artistas/refresh?only_missing_images=${onlyMissingImages}`, { method: 'POST' })
 export const createArtist = (payload) =>
   request('/artistas', { method: 'POST', body: JSON.stringify(payload) })
+export const importArtists = (payload) =>
+  request('/artistas/import', { method: 'POST', body: JSON.stringify(payload) })
 export const deleteArtist = (artistId) => request(`/artistas/${artistId}`, { method: 'DELETE' })
 export const searchSpotifyArtists = (query) =>
   request(`/spotify/artists/search?q=${encodeURIComponent(query)}`)
@@ -69,3 +71,8 @@ export const deleteError = (errorId) => request(`/erros/${errorId}`, { method: '
 export const getSettings = () => request('/settings')
 export const updateSettings = (payload) =>
   request('/settings', { method: 'PUT', body: JSON.stringify(payload) })
+export const importYTMusicAuth = (authJson) =>
+  request('/settings/ytmusic-auth/import', {
+    method: 'POST',
+    body: JSON.stringify({ auth_json: authJson }),
+  })
