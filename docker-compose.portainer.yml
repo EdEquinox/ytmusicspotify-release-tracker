@@ -1,6 +1,6 @@
 services:
   frontend:
-    image: ${FRONTEND_IMAGE:-ghcr.io/your-user/ytmusic-release-tracker-frontend:latest}
+    image: ghcr.io/edequinox/ytmusic-release-tracker-frontend:latest
     ports:
       - "${FRONTEND_PORT:-3001}:3000"
     environment:
@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ${BACKEND_IMAGE:-ghcr.io/your-user/ytmusic-release-tracker-backend:latest}
+    image: ghcr.io/edequinox/ytmusic-release-tracker-backend:latest
     ports:
       - "${BACKEND_PORT:-8001}:8000"
     environment:
@@ -29,11 +29,11 @@ services:
       WORKER_PROCESSED_SLEEP_SECONDS: "${WORKER_PROCESSED_SLEEP_SECONDS:-10}"
       WORKER_ALBUM_AUDIO_ONLY_STRICT: "${WORKER_ALBUM_AUDIO_ONLY_STRICT:-true}"
     volumes:
-      - "${DATA_DIR:-/opt/ytmusic-release-tracker/data}:/data"
+      - /opt/ytmusic-release-tracker/data:/data
     restart: unless-stopped
 
   worker:
-    image: ${WORKER_IMAGE:-ghcr.io/your-user/ytmusic-release-tracker-worker:latest}
+    image: ghcr.io/edequinox/ytmusic-release-tracker-worker:latest
     environment:
       BACKEND_URL: "http://backend:8000"
       WORKER_BACKEND_RETRY_SECONDS: "${WORKER_BACKEND_RETRY_SECONDS:-15}"
@@ -44,7 +44,7 @@ services:
       YTMUSIC_PLAYLIST_ID: "${YTMUSIC_PLAYLIST_ID:-}"
       YTMUSIC_USER: "${YTMUSIC_USER:-}"
     volumes:
-      - "${DATA_DIR:-/opt/ytmusic-release-tracker/data}:/data"
+      - /opt/ytmusic-release-tracker/data:/data
     depends_on:
       - backend
     restart: unless-stopped
