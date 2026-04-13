@@ -5,3 +5,7 @@ frontend/node_modules/
 backend/venv/
 worker/venv/
 .DS_Store
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
