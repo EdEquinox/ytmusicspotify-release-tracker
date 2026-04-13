@@ -1,0 +1,45 @@
+.Header {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  flex: 0 0 auto;
+
+  &__title {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-bottom: 0 !important;
+    margin-right: 20px;
+    user-select: none;
+    flex: 0 0 225px;
+
+    @include touch {
+      margin-right: 0;
+      text-align: left;
+      flex: 0 1 auto;
+    }
+  }
+
+  &__left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+
+    @include mobile {
+      gap: 10px;
+    }
+  }
+
+  &__right {
+    justify-content: flex-end;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+
+    @include mobile {
+      gap: 10px;
+    }
+  }
+}

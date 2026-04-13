@@ -1,0 +1,44 @@
+.PlaylistModal {
+  .modal-content {
+    .control {
+      display: flex;
+
+      @include mobile {
+        flex-direction: column;
+      }
+
+      .field {
+        margin-bottom: 0;
+        margin-right: 8px;
+
+        @include mobile {
+          margin-right: 0;
+          margin-bottom: 10px;
+        }
+
+        label {
+          user-select: none;
+        }
+      }
+
+      select {
+        width: 100%;
+      }
+    }
+
+    .field {
+      margin-bottom: 24px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 16px;
+
+      .button {
+        @include mobile {
+          width: 100%;
+        }
+      }
+    }
+  }
+}

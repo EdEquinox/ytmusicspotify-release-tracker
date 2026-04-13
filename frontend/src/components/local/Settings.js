@@ -1,0 +1,371 @@
+import { useEffect, useState } from 'react'
+import { Button, ButtonLink, Content, Header, Input, VerticalLayout } from 'components/common'
+import { getSettings, updateSettings } from 'backendApi'
+
+const SPOTIFY_GROUP_OPTIONS = ['album', 'single', 'compilation', 'appears_on']
+const SPOTIFY_MARKET_OPTIONS = ['', 'PT', 'BR', 'US', 'GB', 'ES', 'FR', 'DE', 'IT', 'JP']
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, idx) => String(idx).padStart(2, '0'))
+const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, idx) => String(idx * 5).padStart(2, '0'))
+
+function Settings() {
+  const [form, setForm] = useState({
+    playlist_id: '',
+    auto_fetch_enabled: false,
+    auto_fetch_time: '04:00',
+    auto_fetch_window_days: 1,
+    spotify_include_groups: 'album,single',
+    spotify_market: '',
+    local_fetch_spacing_ms: 120,
+    release_workers: 10,
+    worker_idle_seconds: 20,
+    worker_processed_sleep_seconds: 10,
+    worker_backend_retry_seconds: 15,
+    worker_album_audio_only_strict: true,
+  })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [infoMessage, setInfoMessage] = useState('')
+  const [lastAutoFetchDate, setLastAutoFetchDate] = useState('')
+
+  const selectedIncludeGroups = String(form.spotify_include_groups || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  const [currentHour = '04', currentMinute = '00'] = String(form.auto_fetch_time || '04:00').split(':')
+
+  const toggleIncludeGroup = (group) => {
+    const current = new Set(selectedIncludeGroups)
+    if (current.has(group)) {
+      current.delete(group)
+    } else {
+      current.add(group)
+    }
+    const nextValue = SPOTIFY_GROUP_OPTIONS.filter((item) => current.has(item)).join(',')
+    setForm((prev) => ({ ...prev, spotify_include_groups: nextValue }))
+  }
+
+  const setAutoFetchTimePart = (part, value) => {
+    const [hour = '04', minute = '00'] = String(form.auto_fetch_time || '04:00').split(':')
+    const nextHour = part === 'hour' ? value : hour
+    const nextMinute = part === 'minute' ? value : minute
+    setForm((prev) => ({ ...prev, auto_fetch_time: `${nextHour}:${nextMinute}` }))
+  }
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        const settings = await getSettings()
+        setForm({
+          playlist_id: settings.playlist_id || '',
+          auto_fetch_enabled: Boolean(settings.auto_fetch_enabled),
+          auto_fetch_time: settings.auto_fetch_time || '04:00',
+          auto_fetch_window_days: Number(settings.auto_fetch_window_days || 1),
+          spotify_include_groups: settings.spotify_include_groups || 'album,single',
+          spotify_market: settings.spotify_market || '',
+          local_fetch_spacing_ms: Number(settings.local_fetch_spacing_ms || 120),
+          release_workers: Number(settings.release_workers || 10),
+          worker_idle_seconds: Number(settings.worker_idle_seconds || 20),
+          worker_processed_sleep_seconds: Number(settings.worker_processed_sleep_seconds || 10),
+          worker_backend_retry_seconds: Number(settings.worker_backend_retry_seconds || 15),
+          worker_album_audio_only_strict:
+            settings.worker_album_audio_only_strict === undefined
+              ? true
+              : Boolean(settings.worker_album_audio_only_strict),
+        })
+        setLastAutoFetchDate(settings.last_auto_fetch_date || '')
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  const onSubmit = async (event) => {
+    event.preventDefault()
+    if (!selectedIncludeGroups.length) {
+      setError('Seleciona pelo menos um Spotify include group.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    setInfoMessage('')
+    try {
+      const saved = await updateSettings({
+        playlist_id: form.playlist_id,
+        auto_fetch_enabled: form.auto_fetch_enabled,
+        auto_fetch_time: form.auto_fetch_time,
+        auto_fetch_window_days: Number(form.auto_fetch_window_days || 1),
+        spotify_include_groups: form.spotify_include_groups,
+        spotify_market: form.spotify_market,
+        local_fetch_spacing_ms: Number(form.local_fetch_spacing_ms || 0),
+        release_workers: Number(form.release_workers || 1),
+        worker_idle_seconds: Number(form.worker_idle_seconds || 20),
+        worker_processed_sleep_seconds: Number(form.worker_processed_sleep_seconds || 10),
+        worker_backend_retry_seconds: Number(form.worker_backend_retry_seconds || 15),
+        worker_album_audio_only_strict: Boolean(form.worker_album_audio_only_strict),
+      })
+      setInfoMessage('Settings guardadas com sucesso.')
+      setLastAutoFetchDate(saved.last_auto_fetch_date || '')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <VerticalLayout>
+      <Header title="Settings">
+        <div className="Header__right">
+          <ButtonLink to="/" title="Releases" icon="fas fa-music" compact>
+            Releases
+          </ButtonLink>
+          <ButtonLink to="/artists" title="Gerir artistas" icon="fas fa-users" compact>
+            Artistas
+          </ButtonLink>
+          <ButtonLink to="/errors" title="Erros de sincronizacao" icon="fas fa-triangle-exclamation" compact>
+            Erros
+          </ButtonLink>
+          <ButtonLink to="/setup" title="Guia de configuracao" icon="fas fa-circle-info" compact>
+            Guia
+          </ButtonLink>
+        </div>
+      </Header>
+      <Content>
+        <div className="LocalPage">
+          <form className="LocalPanel" onSubmit={onSubmit}>
+            <div className="columns is-multiline mb-1">
+              <div className="column is-8-desktop is-12-tablet">
+                <div className="field mb-0">
+                  <label className="label has-text-light">Playlist ID do YouTube Music</label>
+                  <Input
+                    value={form.playlist_id}
+                    onChange={(event) => setForm((prev) => ({ ...prev, playlist_id: event.target.value }))}
+                    placeholder="Ex: PLxxxxxxxxxxxxxxxxxxxx"
+                  />
+                </div>
+              </div>
+              <div className="column is-4-desktop is-12-tablet">
+                <div className="field mb-0">
+                  <label className="label has-text-light">Spotify market (opcional)</label>
+                  <div className="select is-fullwidth">
+                    <select
+                      value={form.spotify_market}
+                      onChange={(event) => setForm((prev) => ({ ...prev, spotify_market: event.target.value }))}
+                    >
+                      {SPOTIFY_MARKET_OPTIONS.map((market) => (
+                        <option key={market || 'none'} value={market}>
+                          {market || 'Sem market fixo'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="field mb-4">
+              <label className="checkbox has-text-light">
+                <input
+                  type="checkbox"
+                  checked={form.auto_fetch_enabled}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, auto_fetch_enabled: event.target.checked }))
+                  }
+                />{' '}
+                Ativar fetch automatico diario
+              </label>
+            </div>
+
+            <div className="columns is-multiline mb-2">
+              <div className="column is-3-desktop is-6-tablet">
+                <label className="label has-text-light">Hora diaria (UTC)</label>
+                <div className="columns is-mobile">
+                  <div className="column pr-1">
+                    <div className="select is-fullwidth">
+                      <select value={currentHour} onChange={(event) => setAutoFetchTimePart('hour', event.target.value)}>
+                        {HOUR_OPTIONS.map((hour) => (
+                          <option key={hour} value={hour}>
+                            {hour}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="column pl-1">
+                    <div className="select is-fullwidth">
+                      <select
+                        value={MINUTE_OPTIONS.includes(currentMinute) ? currentMinute : '00'}
+                        onChange={(event) => setAutoFetchTimePart('minute', event.target.value)}
+                      >
+                        {MINUTE_OPTIONS.map((minute) => (
+                          <option key={minute} value={minute}>
+                            {minute}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="column is-3-desktop is-6-tablet">
+                <label className="label has-text-light">Janela (dias para tras)</label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={form.auto_fetch_window_days}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      auto_fetch_window_days: Number(event.target.value || 1),
+                    }))
+                  }
+                />
+              </div>
+              <div className="column is-6-desktop is-12-tablet">
+                <label className="label has-text-light">Spotify include groups</label>
+                <div className="is-flex is-flex-wrap-wrap" style={{ gap: '0.75rem' }}>
+                  {SPOTIFY_GROUP_OPTIONS.map((group) => (
+                    <label className="checkbox has-text-light" key={group}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIncludeGroups.includes(group)}
+                        onChange={() => toggleIncludeGroup(group)}
+                      />{' '}
+                      {group}
+                    </label>
+                  ))}
+                </div>
+                <p className="has-text-grey is-size-7 mt-2">
+                  Recomendado para menos rate-limit: <code>album</code> e <code>single</code>.
+                </p>
+              </div>
+            </div>
+
+            <div className="columns is-multiline mb-2">
+              <div className="column is-4-desktop is-12-tablet">
+                <label className="label has-text-light">Delay entre artistas (ms)</label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="5000"
+                  value={form.local_fetch_spacing_ms}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      local_fetch_spacing_ms: Number(event.target.value || 0),
+                    }))
+                  }
+                />
+              </div>
+              <div className="column is-4-desktop is-6-tablet">
+                <label className="label has-text-light">Workers para /releases</label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={form.release_workers}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      release_workers: Number(event.target.value || 1),
+                    }))
+                  }
+                />
+              </div>
+              <div className="column is-4-desktop is-6-tablet">
+                <label className="label has-text-light">Worker retry backend (s)</label>
+                <Input
+                  type="number"
+                  min="5"
+                  max="600"
+                  value={form.worker_backend_retry_seconds}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      worker_backend_retry_seconds: Number(event.target.value || 15),
+                    }))
+                  }
+                />
+              </div>
+            </div>
+            <p className="has-text-grey is-size-7 mb-4">
+              Mais delay e menos workers reduzem 429; mais workers podem acelerar, mas com maior risco de rate-limit.
+            </p>
+
+            <div className="columns is-multiline mb-2">
+              <div className="column is-6-desktop is-12-tablet">
+                <label className="label has-text-light">Worker idle (s)</label>
+                <Input
+                  type="number"
+                  min="5"
+                  max="3600"
+                  value={form.worker_idle_seconds}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      worker_idle_seconds: Number(event.target.value || 20),
+                    }))
+                  }
+                />
+              </div>
+              <div className="column is-6-desktop is-12-tablet">
+                <label className="label has-text-light">Worker pos-processamento (s)</label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="600"
+                  value={form.worker_processed_sleep_seconds}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      worker_processed_sleep_seconds: Number(event.target.value || 10),
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="field mb-4">
+              <label className="checkbox has-text-light">
+                <input
+                  type="checkbox"
+                  checked={form.worker_album_audio_only_strict}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      worker_album_audio_only_strict: event.target.checked,
+                    }))
+                  }
+                />{' '}
+                Worker album audio-only strict mode
+              </label>
+              <p className="has-text-grey is-size-7 mt-2">
+                Se ativo, evita videos musicais em albuns e tenta fallback por faixa.
+              </p>
+            </div>
+
+            {lastAutoFetchDate && (
+              <p className="has-text-grey mb-3">Ultimo fetch automatico: {lastAutoFetchDate}</p>
+            )}
+            {error && <p className="has-text-danger mb-3">{error}</p>}
+            {infoMessage && <p className="has-text-success mb-3">{infoMessage}</p>}
+            {loading && <p className="has-text-grey mb-3">A carregar settings...</p>}
+
+            <Button type="submit" primary disabled={saving || loading}>
+              {saving ? 'A guardar...' : 'Guardar settings'}
+            </Button>
+          </form>
+        </div>
+      </Content>
+    </VerticalLayout>
+  )
+}
+
+export default Settings

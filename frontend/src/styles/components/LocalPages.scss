@@ -1,0 +1,349 @@
+.LocalPage {
+  color: #f5f5f5;
+}
+
+.LocalPanel {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.LocalPanel--toolbar {
+  padding: 16px;
+}
+
+.LocalTopRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.LocalTopRow__date {
+  min-width: 150px;
+}
+
+.LocalTopRow .field {
+  margin-bottom: 0;
+}
+
+.LocalTopRow .label {
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+}
+
+.LocalTopRow__search {
+  flex: 1;
+  min-width: 280px;
+}
+
+.LocalTopRow__search .input {
+  height: 36px;
+}
+
+.LocalTopRow__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  align-self: flex-end;
+}
+
+.LocalTopRow__actions .button {
+  height: 36px;
+}
+
+.LocalReleaseGroups .title {
+  color: #f5f5f5 !important;
+}
+
+.LocalDateTitle {
+  font-size: 1.15rem !important;
+  letter-spacing: 0.3px;
+}
+
+.LocalReleaseDateBadge {
+  display: inline-block;
+  font-size: 0.72rem;
+  color: #cbcbcb;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-bottom: 8px;
+}
+
+.LocalReleaseCard {
+  background: #262626 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f5f5f5;
+  min-height: 165px;
+  padding: 0.9rem !important;
+}
+
+.LocalReleaseTitle {
+  color: #f9f9f9;
+  line-height: 1.25;
+  font-size: 0.98rem;
+}
+
+.LocalReleaseArtist {
+  color: #d9d9d9;
+  font-size: 0.86rem;
+  margin-top: 2px;
+}
+
+.LocalReleaseReason {
+  color: #bbbbbb;
+  font-size: 0.78rem;
+  margin-top: 4px;
+}
+
+.LocalReleaseType {
+  color: #9f9f9f;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.LocalReleaseCover img {
+  border-radius: 6px;
+}
+
+.LocalReleaseCover__placeholder {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  background: #1f1f1f;
+}
+
+.LocalTableWrap {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.LocalTable {
+  background: transparent !important;
+}
+
+.LocalTable th {
+  color: #f3f3f3 !important;
+}
+
+.LocalTable td {
+  color: #e2e2e2 !important;
+}
+
+.LocalSpotifyLink {
+  color: #8ecfff !important;
+  font-size: 0.8rem;
+}
+
+.LocalSpotifyLink:hover {
+  text-decoration: underline;
+}
+
+.LocalSpotifyLinkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(147, 205, 255, 0.45);
+  background: rgba(59, 130, 246, 0.18);
+  color: #d9eeff !important;
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.LocalSpotifyLinkButton:hover {
+  background: rgba(59, 130, 246, 0.28);
+  text-decoration: none;
+}
+
+.LocalReleaseActionsRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.LocalReleaseActionsLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.LocalFetchDayHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.LocalFetchDayTitle {
+  color: #d8d8d8;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.LocalFiltersRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.LocalFilterOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #dadada;
+  font-size: 0.86rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin: 0 !important;
+}
+
+.LocalFetchDayFilter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.LocalFetchDayFilter__label {
+  color: #cecece;
+  font-size: 0.82rem;
+}
+
+.LocalFetchDayFilter__select select {
+  min-height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ededed;
+}
+
+@media (max-width: 900px) {
+  .LocalFetchDayFilter {
+    margin-left: 0;
+  }
+}
+
+.LocalActionButton {
+  color: #e7e7e7 !important;
+  font-size: 0.82rem !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 8px !important;
+  min-height: 30px !important;
+  padding: 0.3rem 0.65rem !important;
+}
+
+.LocalActionButton--primary {
+  color: #dff8e8 !important;
+  background: rgba(55, 176, 110, 0.3) !important;
+  border-color: rgba(94, 219, 147, 0.55) !important;
+}
+
+.LocalActionButton:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.LocalActionButton--primary:hover {
+  background: rgba(63, 194, 125, 0.42) !important;
+}
+
+.LocalTrackList {
+  margin-top: 12px !important;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
+  padding-top: 10px;
+}
+
+.LocalTrackRow__title {
+  color: #dedede;
+  font-size: 0.84rem;
+  line-height: 1.2;
+  margin-right: 8px;
+}
+
+.LocalArtistGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.LocalArtistCardCompact {
+  background: #262626;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 148px;
+}
+
+.LocalArtistRow__media {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+}
+
+.LocalArtistRow__name {
+  color: #f3f3f3;
+  font-weight: 600;
+  font-size: 0.92rem;
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.LocalArtistRow__id {
+  color: #bdbdbd;
+  font-size: 0.72rem;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.LocalArtistRow__actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+  width: 100%;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+.LocalArtistRow__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #1f1f1f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.LocalArtistRow__avatar--placeholder {
+  background: linear-gradient(135deg, #2f2f2f, #1f1f1f);
+}
+
+@media (max-width: 768px) {
+  .LocalArtistGrid {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  }
+}

@@ -1,0 +1,47 @@
+.SettingsMenu {
+  &__container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    position: sticky;
+    top: 10px;
+
+    @include tablet {
+      margin-top: 12px;
+    }
+
+    @include mobile {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+  }
+
+  &__link {
+    color: $grey !important;
+
+    @include mobile {
+      margin-right: 12px;
+    }
+
+    &:active {
+      color: $grey-dark !important;
+    }
+
+    &--active {
+      color: $white-bis !important;
+
+      &:active {
+        color: $white-bis !important;
+      }
+
+      span {
+        text-decoration: none !important;
+      }
+    }
+  }
+
+  &__close {
+    margin-top: 16px;
+    margin-right: 6px;
+  }
+}

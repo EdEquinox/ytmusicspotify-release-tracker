@@ -1,0 +1,19 @@
+.PlaylistInfo {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
+
+  @include mobile {
+    padding: 10px 0 20px 0;
+  }
+
+  &__link {
+    margin-top: 6px;
+
+    @include mobile {
+      width: 100%;
+    }
+  }
+}

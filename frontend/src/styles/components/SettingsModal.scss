@@ -1,0 +1,64 @@
+.SettingsModal {
+  .modal-content {
+    .control {
+      display: flex;
+
+      @include mobile {
+        flex-direction: column;
+      }
+
+      .field {
+        margin-bottom: 0;
+        margin-right: 8px;
+
+        @include mobile {
+          margin-right: 0;
+          margin-bottom: 10px;
+        }
+
+        label {
+          user-select: none;
+        }
+      }
+
+      .select,
+      select {
+        width: 100%;
+      }
+    }
+
+    .help {
+      margin: 0 0 20px 0;
+    }
+
+    .actions {
+      .column {
+        @include mobile {
+          margin-top: 20px;
+
+          &:first-child {
+            margin-top: 0;
+          }
+        }
+
+        .button {
+          @include mobile {
+            width: 100%;
+          }
+        }
+      }
+    }
+
+    .reset {
+      margin-bottom: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+
+      button {
+        margin-top: 10px;
+      }
+    }
+  }
+}

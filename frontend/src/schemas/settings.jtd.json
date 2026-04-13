@@ -1,0 +1,35 @@
+{
+  "properties": {
+    "artistSources": {
+      "elements": { "enum": ["followed", "saved-tracks", "saved-albums"] }
+    },
+    "minimumSavedTracks": { "type": "uint16" },
+    "groups": {
+      "elements": { "enum": ["album", "single", "compilation", "appears_on"] }
+    },
+    "groupColors": {
+      "properties": {
+        "album": { "type": "string" },
+        "single": { "type": "string" },
+        "compilation": { "type": "string" },
+        "appears_on": { "type": "string" }
+      }
+    },
+    "days": { "type": "uint16" },
+    "theme": { "type": "string" },
+    "uriLinks": { "type": "boolean" },
+    "covers": { "type": "boolean" },
+    "autoSync": { "type": "boolean" },
+    "autoSyncTime": { "type": "string" },
+    "notifications": { "type": "boolean" },
+    "firstDayOfWeek": { "type": "uint16" },
+    "displayTracks": { "type": "boolean" },
+    "fullAlbumData": { "type": "boolean" },
+    "displayLabels": { "type": "boolean" },
+    "displayPopularity": { "type": "boolean" },
+    "labelBlocklist": { "type": "string" },
+    "artistBlocklist": { "type": "string" },
+    "releasesOrder": { "enum": ["artist", "album-group"] },
+    "trackHistory": { "type": "boolean" }
+  }
+}

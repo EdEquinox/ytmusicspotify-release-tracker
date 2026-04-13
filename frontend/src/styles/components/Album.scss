@@ -1,0 +1,266 @@
+.Album {
+  margin: 25px 0 0 20px !important;
+  padding: 0 !important;
+  border: none !important;
+  flex: 0 0 400px;
+
+  @include theme(compact) {
+    margin-top: 20px !important;
+    flex: 0 0 300px;
+  }
+
+  @include theme(single-column) {
+    flex: 0 0 calc(100% - 20px);
+  }
+
+  @include desktop-only {
+    flex: 0 0 calc(50% - 20px);
+
+    @include theme(compact) {
+      flex: 0 0 calc(33.33333333% - 20px);
+    }
+
+    @include theme(single-column) {
+      flex: 0 0 calc(100% - 20px);
+    }
+  }
+
+  @include touch {
+    margin-top: 20px !important;
+
+    @include theme(compact) {
+      margin-left: 15px !important;
+      margin-top: 15px !important;
+    }
+
+    @include theme(single-column) {
+      margin-left: 0 !important;
+    }
+  }
+
+  @include tablet-only {
+    flex: 0 0 calc(50% - 10px);
+
+    &:nth-child(2n + 1) {
+      margin-left: 0 !important;
+    }
+
+    @include theme(compact) {
+      &:nth-child(2n + 1) {
+        margin-left: 15px !important;
+      }
+
+      &:nth-child(3n + 1) {
+        margin-left: 0 !important;
+      }
+
+      flex: 0 0 calc(33.33333333% - 10px) !important;
+    }
+
+    @include theme(single-column) {
+      flex: 0 0 100%;
+    }
+
+    @include theme(single-column, compact) {
+      margin-left: 0 !important;
+    }
+  }
+
+  @include mobile {
+    flex: 0 0 100%;
+    margin-left: 0 !important;
+
+    @include theme(compact) {
+      flex: 0 0 100%;
+      margin-left: 0 !important;
+    }
+
+    @include theme(single-column) {
+      flex: 0 0 100%;
+    }
+  }
+
+  &__left {
+    display: flex;
+    align-items: center;
+    margin-right: 0;
+    min-height: 60px;
+    position: relative;
+
+    @include theme(compact) {
+      min-height: 40px;
+    }
+
+    &--edit {
+      cursor: pointer;
+    }
+  }
+
+  &__cover {
+    margin: 0 15px 0 0 !important;
+    cursor: pointer;
+
+    @include theme(compact) {
+      margin-right: 10px !important;
+    }
+  }
+
+  &__figure {
+    border-radius: 3px;
+    height: 60px;
+    width: 60px;
+    background-color: #121212;
+
+    @include theme(compact) {
+      height: 40px;
+      width: 40px;
+    }
+  }
+
+  &__image {
+    border-radius: 3px;
+    filter: brightness(0.92);
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__title-row {
+    margin-top: 4px;
+    margin-bottom: 5px;
+    font-size: 1.25rem;
+    line-height: 1.2;
+
+    @include theme(compact) {
+      margin-top: 1px;
+      margin-bottom: 4px;
+      font-size: 1rem;
+    }
+  }
+
+  &__title {
+    color: $primary-slightly-darker;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration-line: underline;
+    }
+
+    @include theme(single-column) {
+      width: fit-content;
+    }
+  }
+
+  &__artists {
+    color: $grey;
+    line-height: 1.25;
+    font-weight: 400;
+
+    @include theme(compact) {
+      font-size: 0.75rem;
+    }
+  }
+
+  &__artist {
+    color: $grey-lighter !important;
+    text-decoration-color: $grey !important;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration-line: underline;
+    }
+
+    &--other {
+      color: $grey !important;
+      text-decoration-color: $grey-darker !important;
+    }
+  }
+
+  &__meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    gap: 10px;
+
+    &:empty {
+      display: none;
+    }
+
+    @include theme(compact) {
+      margin-top: 8px;
+      gap: 8px;
+    }
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    font-size: 1rem;
+    padding: 0px 6px;
+    background-color: $darkest;
+    color: $grey-lightest;
+    border-radius: 4px;
+    font-weight: 300;
+    user-select: none;
+
+    @include theme(compact) {
+      font-size: 0.75rem;
+      padding: 0px 4px;
+    }
+  }
+
+  &__popularity-icon {
+    margin-right: 6px;
+    color: $grey;
+
+    @include theme(compact) {
+      margin-right: 4px;
+    }
+  }
+
+  &__favorite-checkbox-label {
+    margin-right: 15px !important;
+
+    @include theme(compact) {
+      margin-right: 12px !important;
+    }
+  }
+
+  .is-checkradio[type='checkbox'].is-dark.has-background-color {
+    + label {
+      &::before {
+        display: none;
+      }
+
+      &::after {
+        display: block;
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        border: none;
+        content: '\f004';
+        color: $darkest;
+        background-color: transparent !important;
+        transform: none;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        font-size: 1.5rem;
+        line-height: 1.5rem;
+        text-align: center;
+
+        @include theme(compact) {
+          font-size: 22px;
+        }
+      }
+    }
+
+    &:checked + label {
+      &::after {
+        color: $red;
+      }
+    }
+  }
+}

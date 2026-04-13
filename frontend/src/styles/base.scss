@@ -1,0 +1,367 @@
+:root {
+  color-scheme: dark;
+}
+
+::-webkit-scrollbar {
+  height: 14px;
+  width: 14px;
+  background: transparent;
+
+  &-thumb {
+    width: 10px;
+    background-color: $grey-dark;
+    background-clip: padding-box;
+    border-radius: 10px;
+    border: 4px solid transparent;
+
+    &:hover {
+      background: $grey;
+    }
+  }
+
+  &-corner {
+    background: transparent;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background-color: #000000;
+  color: $white-ter;
+}
+
+#ua {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.is-modal-open {
+  position: fixed;
+  overflow-y: scroll;
+  width: 100%;
+}
+
+.input.is-dark {
+  background-color: $darkest;
+  border-color: $darkest;
+  color: $white-ter;
+
+  &:hover,
+  &:focus {
+    box-shadow: 0 0 0 0.125em $black-bis;
+    background-color: $black-ter;
+    border-color: $black-ter;
+  }
+
+  &::placeholder {
+    color: $grey;
+  }
+
+  &:disabled {
+    color: $grey-light;
+    background-color: $grey-darker;
+  }
+}
+
+.textarea.is-dark {
+  background-color: $darkest;
+  color: $white-ter;
+
+  &:not(.is-danger) {
+    border-color: $darkest;
+  }
+
+  &:hover,
+  &:focus {
+    box-shadow: 0 0 0 0.125em $black-bis;
+    background-color: $black-ter;
+  }
+
+  &::placeholder {
+    color: $grey;
+  }
+}
+
+.input.is-danger {
+  border-color: $red;
+
+  &:hover,
+  &:focus {
+    border-color: $red;
+  }
+}
+
+.button.is-darker {
+  background-color: $darkest;
+}
+
+.button.is-primary {
+  background-color: $primary;
+  color: $black;
+
+  &:hover {
+    background-color: $primary-light;
+    color: $black;
+  }
+
+  &:active,
+  &:focus {
+    background-color: $primary-slightly-darker;
+    color: $black;
+  }
+}
+
+.button.is-text {
+  color: $white-bis;
+  padding-left: 6px;
+  padding-right: 6px;
+  border: none !important;
+  box-shadow: none !important;
+  background: none !important;
+  text-decoration: none;
+
+  &:focus {
+    color: $white-bis;
+  }
+
+  &:hover {
+    color: $grey-lighter;
+
+    span:not(.icon) {
+      text-decoration: none;
+    }
+  }
+
+  &:active {
+    color: $grey-light;
+  }
+
+  &.is-dark {
+    color: $grey-light;
+
+    &:focus {
+      color: $white-bis;
+    }
+
+    &:hover {
+      color: $grey-lighter;
+    }
+
+    &:active {
+      color: $grey-light;
+    }
+  }
+
+  span:not(.icon) {
+    text-decoration: underline;
+  }
+}
+
+@include mobile {
+  .button {
+    justify-content: center;
+
+    &--compact {
+      padding-left: 1em !important;
+      padding-right: 1em !important;
+    }
+  }
+
+  .button.has-badge .icon:nth-child(1) {
+    margin-right: calc(-0.5em - 1px) !important;
+  }
+}
+
+.badge {
+  display: block;
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  padding: 0 4px;
+  margin: 0;
+  font-size: 10px;
+  border-radius: 8px;
+  color: $white-ter;
+  background-color: $darkest;
+  font-weight: 600;
+
+  &--inline {
+    display: inline-block;
+    position: static;
+    vertical-align: middle;
+    margin-left: 5px;
+    font-size: 12px;
+  }
+
+  &--info {
+    background-color: $info;
+  }
+}
+
+.is-checkradio[type='checkbox']:focus + label::before,
+.is-checkradio[type='checkbox']:focus + label:before,
+.is-checkradio[type='radio']:focus + label::before,
+.is-checkradio[type='radio']:focus + label:before {
+  outline: none;
+}
+
+.modal {
+  position: fixed;
+}
+
+.modal-content {
+  padding: 30px;
+  border-radius: 3px;
+  // Mobile Safari-specific hack that fixes disappearing padding
+  box-shadow: 0px 0px 1px 0px transparent;
+
+  @include mobile {
+    padding: 20px 15px;
+  }
+
+  .title {
+    margin-bottom: 24px;
+  }
+}
+
+.progress::-webkit-progress-value {
+  transition: width 0.5s linear;
+}
+
+.button[disabled] {
+  opacity: 0.7;
+}
+
+.message {
+  &.is-dark {
+    background: $grey-darker;
+
+    .message-body {
+      color: $white-bis;
+      border-color: $grey-dark;
+    }
+  }
+
+  .message-body {
+    padding: 15px;
+  }
+}
+
+.is-checkradio[type='checkbox'] {
+  &:hover {
+    &.is-dark.has-background-color {
+      + label {
+        color: $grey-light;
+
+        &::before,
+        &:before {
+          background-color: $black-ter !important;
+          border-color: transparent !important;
+        }
+      }
+    }
+  }
+
+  + label {
+    color: $white-ter;
+    user-select: none;
+
+    &::after,
+    &:after {
+      border-width: 0.15rem !important;
+    }
+  }
+
+  &.is-dark.has-background-color {
+    + label {
+      color: $grey;
+
+      &::before,
+      &:before {
+        background-color: $darkest !important;
+      }
+    }
+
+    &:checked {
+      + label {
+        color: $grey-light;
+
+        &::before,
+        &:before {
+          background-color: $primary !important;
+        }
+
+        &::after,
+        &:after {
+          background-color: $primary !important;
+          border-color: $darkest !important;
+        }
+      }
+    }
+  }
+
+  &.no-label {
+    + label {
+      margin: 0;
+      padding: 0;
+      width: 1.5rem;
+      height: 1.5rem;
+      display: block;
+    }
+  }
+}
+
+.notification {
+  position: absolute;
+  width: auto;
+  max-width: 600px;
+  top: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 99999;
+
+  @include mobile {
+    width: calc(100% - 30px);
+    max-width: none;
+    left: 15px;
+    transform: none;
+  }
+}
+
+.label {
+  .tag {
+    vertical-align: top;
+    margin-left: 16px;
+    font-weight: 500;
+  }
+}
+
+.select {
+  &:after {
+    border-color: $black-ter !important;
+  }
+
+  &:hover,
+  &:focus {
+    &:after {
+      border-color: $grey !important;
+    }
+  }
+
+  select {
+    &:focus {
+      box-shadow: 0 0 0 0.125em rgba($grey, 25%);
+      border-color: $grey;
+    }
+  }
+}
+
+strong {
+  color: $white-ter;
+}
