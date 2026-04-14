@@ -266,9 +266,8 @@ def _sync_likes_cycle(
             continue
 
         _report_not_found(backend_url, artist, title)
-        _add_historico(backend_url, key, artist, title)
-        historico_ids.add(key)
-        print(f"[reverse] Not found on Spotify: {artist} - {title}")
+        # Keep out of historico so worker can retry later.
+        print(f"[reverse] Not found on Spotify (will retry): {artist} - {title}")
 
 
 def _download_with_spotiflac(
