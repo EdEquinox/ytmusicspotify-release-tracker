@@ -209,6 +209,8 @@ def _sync_likes_cycle(
     spotiflac_filename_format: str,
     spotiflac_use_artist_subfolders: bool,
     spotiflac_use_album_subfolders: bool,
+    reverse_track_spacing_ms: int,
+    spotiflac_loop_minutes: int,
 ) -> None:
     historico_ids = _list_historico_ids(backend_url)
     payload = ytmusic.get_liked_songs(limit=liked_limit) or {}
@@ -245,6 +247,7 @@ def _sync_likes_cycle(
                     filename_format=spotiflac_filename_format,
                     use_artist_subfolders=spotiflac_use_artist_subfolders,
                     use_album_subfolders=spotiflac_use_album_subfolders,
+                    loop_minutes=spotiflac_loop_minutes,
                 )
                 if not ok:
                     download_ok = False
@@ -256,6 +259,8 @@ def _sync_likes_cycle(
                     )
             if not download_ok:
                 # Keep out of historico so worker can retry later.
+                if reverse_track_spacing_ms > 0:
+                    time.sleep(reverse_track_spacing_ms / 1000.0)
                 continue
             if add_to_playlist:
                 spotify.playlist_add_items(spotify_playlist_id, [spotify_track_id])
@@ -263,11 +268,15 @@ def _sync_likes_cycle(
             _clear_resolved_errors(backend_url, artist, title)
             historico_ids.add(key)
             print(f"[reverse] Processed: {artist} - {title}")
+            if reverse_track_spacing_ms > 0:
+                time.sleep(reverse_track_spacing_ms / 1000.0)
             continue
 
         _report_not_found(backend_url, artist, title)
         # Keep out of historico so worker can retry later.
         print(f"[reverse] Not found on Spotify (will retry): {artist} - {title}")
+        if reverse_track_spacing_ms > 0:
+            time.sleep(reverse_track_spacing_ms / 1000.0)
 
 
 def _download_with_spotiflac(
@@ -281,13 +290,12 @@ def _download_with_spotiflac(
     filename_format: str,
     use_artist_subfolders: bool,
     use_album_subfolders: bool,
+    loop_minutes: int,
 ) -> tuple[bool, str]:
     os.makedirs(output_dir, exist_ok=True)
     before_snapshot = _files_snapshot(output_dir)
     # Preferred path for recent spotiflac versions (Python API).
     try:
-        # Run single-pass per worker cycle; worker loop handles retries.
-        loop_minutes = 0
         SpotiFLAC(
             url=spotify_url,
             output_dir=output_dir,
@@ -295,7 +303,7 @@ def _download_with_spotiflac(
             filename_format=filename_format,
             use_artist_subfolders=use_artist_subfolders,
             use_album_subfolders=use_album_subfolders,
-            loop=loop_minutes,
+            loop=max(loop_minutes, 0),
         )
         after_snapshot = _files_snapshot(output_dir)
         if before_snapshot != after_snapshot:
@@ -424,6 +432,8 @@ def main() -> None:
     spotiflac_command_template = 'spotiflac "{spotify_url}" "{output_dir}"'
     spotiflac_command_template = _normalize_spotiflac_template(spotiflac_command_template)
     spotiflac_timeout_seconds = 600
+    spotiflac_loop_minutes = 0
+    reverse_track_spacing_ms = 0
     # Force strict service selection: only Tidal.
     spotiflac_services = ["tidal"]
     spotiflac_filename_format = os.getenv(
@@ -471,6 +481,14 @@ def main() -> None:
                 int(settings.get("reverse_spotiflac_timeout_seconds", spotiflac_timeout_seconds)),
                 10,
             )
+            spotiflac_loop_minutes = max(
+                int(settings.get("reverse_spotiflac_loop_minutes", spotiflac_loop_minutes)),
+                0,
+            )
+            reverse_track_spacing_ms = max(
+                int(settings.get("reverse_track_spacing_ms", reverse_track_spacing_ms)),
+                0,
+            )
             # Keep strict service selection independent from settings/env.
             spotiflac_services = ["tidal"]
             spotiflac_filename_format = (
@@ -513,6 +531,8 @@ def main() -> None:
                 spotiflac_filename_format=spotiflac_filename_format,
                 spotiflac_use_artist_subfolders=spotiflac_use_artist_subfolders,
                 spotiflac_use_album_subfolders=spotiflac_use_album_subfolders,
+                reverse_track_spacing_ms=reverse_track_spacing_ms,
+                spotiflac_loop_minutes=spotiflac_loop_minutes,
             )
         except Exception as exc:
             print(f"[reverse] Sync cycle failed: {exc}")

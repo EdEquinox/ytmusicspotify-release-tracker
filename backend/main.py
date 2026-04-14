@@ -164,6 +164,8 @@ class AppSettings(BaseModel):
         'spotiflac "{spotify_url}" "{output_dir}"'
     )
     reverse_spotiflac_timeout_seconds: int = 600
+    reverse_spotiflac_loop_minutes: int = 0
+    reverse_track_spacing_ms: int = 0
     last_auto_fetch_date: str | None = None
 
 
@@ -195,6 +197,8 @@ class AppSettingsUpdate(BaseModel):
         'spotiflac "{spotify_url}" "{output_dir}"'
     )
     reverse_spotiflac_timeout_seconds: int = Field(default=600, ge=10, le=86400)
+    reverse_spotiflac_loop_minutes: int = Field(default=0, ge=0, le=1440)
+    reverse_track_spacing_ms: int = Field(default=0, ge=0, le=30000)
 
 
 class ArtistsImportPayload(BaseModel):
@@ -278,6 +282,8 @@ def _default_settings_payload() -> dict:
         reverse_spotiflac_output_dir="/data/downloads",
         reverse_spotiflac_command_template='spotiflac "{spotify_url}" "{output_dir}"',
         reverse_spotiflac_timeout_seconds=600,
+        reverse_spotiflac_loop_minutes=0,
+        reverse_track_spacing_ms=0,
         spotify_include_groups="album,single",
         spotify_market="",
         local_fetch_spacing_ms=120,
@@ -941,6 +947,8 @@ def update_settings(payload: AppSettingsUpdate) -> AppSettings:
                 "reverse_spotiflac_command_template": payload.reverse_spotiflac_command_template.strip()
                 or 'spotiflac "{spotify_url}" "{output_dir}"',
                 "reverse_spotiflac_timeout_seconds": payload.reverse_spotiflac_timeout_seconds,
+                "reverse_spotiflac_loop_minutes": payload.reverse_spotiflac_loop_minutes,
+                "reverse_track_spacing_ms": payload.reverse_track_spacing_ms,
             }
         )
         _write_settings(updated)

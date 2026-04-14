@@ -13,6 +13,15 @@ const SPOTIFY_MARKET_OPTIONS = ['', 'PT', 'BR', 'US', 'GB', 'ES', 'FR', 'DE', 'I
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, idx) => String(idx).padStart(2, '0'))
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, idx) => String(idx * 5).padStart(2, '0'))
 
+const HelpLabel = ({ text, help }) => (
+  <label className="label has-text-light" title={help}>
+    {text}{' '}
+    <span className="has-text-grey-light" style={{ cursor: 'help' }}>
+      (?)
+    </span>
+  </label>
+)
+
 function Settings() {
   const [form, setForm] = useState({
     playlist_id: '',
@@ -40,6 +49,8 @@ function Settings() {
     reverse_spotiflac_output_dir: '/data/downloads',
     reverse_spotiflac_command_template: 'spotiflac "{spotify_url}" "{output_dir}"',
     reverse_spotiflac_timeout_seconds: 600,
+    reverse_spotiflac_loop_minutes: 0,
+    reverse_track_spacing_ms: 0,
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -117,6 +128,8 @@ function Settings() {
             settings.reverse_spotiflac_command_template ||
             'spotiflac "{spotify_url}" "{output_dir}"',
           reverse_spotiflac_timeout_seconds: Number(settings.reverse_spotiflac_timeout_seconds || 600),
+          reverse_spotiflac_loop_minutes: Number(settings.reverse_spotiflac_loop_minutes || 0),
+          reverse_track_spacing_ms: Number(settings.reverse_track_spacing_ms || 0),
         })
         setLastAutoFetchDate(settings.last_auto_fetch_date || '')
       } catch (err) {
@@ -164,6 +177,8 @@ function Settings() {
         reverse_spotiflac_output_dir: form.reverse_spotiflac_output_dir,
         reverse_spotiflac_command_template: form.reverse_spotiflac_command_template,
         reverse_spotiflac_timeout_seconds: Number(form.reverse_spotiflac_timeout_seconds || 600),
+        reverse_spotiflac_loop_minutes: Number(form.reverse_spotiflac_loop_minutes || 0),
+        reverse_track_spacing_ms: Number(form.reverse_track_spacing_ms || 0),
       })
       setInfoMessage('Settings guardadas com sucesso.')
       setLastAutoFetchDate(saved.last_auto_fetch_date || '')
@@ -264,6 +279,8 @@ function Settings() {
           saved.reverse_spotiflac_command_template ||
           'spotiflac "{spotify_url}" "{output_dir}"',
         reverse_spotiflac_timeout_seconds: Number(saved.reverse_spotiflac_timeout_seconds || 600),
+        reverse_spotiflac_loop_minutes: Number(saved.reverse_spotiflac_loop_minutes || 0),
+        reverse_track_spacing_ms: Number(saved.reverse_track_spacing_ms || 0),
       }))
       setLastAutoFetchDate(saved.last_auto_fetch_date || '')
       setInfoMessage('Settings importadas com sucesso.')
@@ -318,10 +335,14 @@ function Settings() {
       <Content>
         <div className="LocalPage">
           <form className="LocalPanel" onSubmit={onSubmit}>
+            <h3 className="title is-6 has-text-light mb-3">Credenciais e Integracoes Spotify</h3>
             <div className="columns is-multiline mb-1">
               <div className="column is-8-desktop is-12-tablet">
                 <div className="field mb-0">
-                  <label className="label has-text-light">Playlist ID do YouTube Music</label>
+                  <HelpLabel
+                    text="Playlist ID do YouTube Music"
+                    help="Playlist de destino usada pelo worker principal para adicionar releases."
+                  />
                   <Input
                     value={form.playlist_id}
                     onChange={(event) => setForm((prev) => ({ ...prev, playlist_id: event.target.value }))}
@@ -331,7 +352,10 @@ function Settings() {
               </div>
               <div className="column is-4-desktop is-12-tablet">
                 <div className="field mb-0">
-                  <label className="label has-text-light">Spotify market (opcional)</label>
+                  <HelpLabel
+                    text="Spotify market (opcional)"
+                    help="Pais/codigo ISO para filtrar resultados da API Spotify (ex.: PT, BR, US)."
+                  />
                   <div className="select is-fullwidth">
                     <select
                       value={form.spotify_market}
@@ -350,7 +374,10 @@ function Settings() {
 
             <div className="columns is-multiline mb-2">
               <div className="column is-6-desktop is-12-tablet">
-                <label className="label has-text-light">Spotify Client ID (backend)</label>
+                <HelpLabel
+                  text="Spotify Client ID (backend)"
+                  help="Client ID usado pelo backend e worker reverse para chamar APIs Spotify."
+                />
                 <Input
                   value={form.spotify_client_id}
                   onChange={(event) => setForm((prev) => ({ ...prev, spotify_client_id: event.target.value }))}
@@ -358,7 +385,10 @@ function Settings() {
                 />
               </div>
               <div className="column is-6-desktop is-12-tablet">
-                <label className="label has-text-light">Spotify Client Secret (backend)</label>
+                <HelpLabel
+                  text="Spotify Client Secret (backend)"
+                  help="Segredo OAuth da app Spotify; nao partilhar."
+                />
                 <Input
                   value={form.spotify_client_secret}
                   onChange={(event) =>
@@ -368,9 +398,13 @@ function Settings() {
                 />
               </div>
             </div>
+            <h3 className="title is-6 has-text-light mb-3 mt-2">Reverse Worker (YT Likes - Spotify)</h3>
             <div className="columns is-multiline mb-2">
               <div className="column is-6-desktop is-12-tablet">
-                <label className="label has-text-light">Reverse worker: Spotify Playlist ID</label>
+                <HelpLabel
+                  text="Reverse worker: Spotify Playlist ID"
+                  help="Playlist Spotify onde os likes encontrados sao adicionados (se ativo)."
+                />
                 <Input
                   value={form.reverse_spotify_playlist_id}
                   onChange={(event) =>
@@ -380,7 +414,10 @@ function Settings() {
                 />
               </div>
               <div className="column is-6-desktop is-12-tablet">
-                <label className="label has-text-light">Reverse worker: Spotify OAuth Redirect URI</label>
+                <HelpLabel
+                  text="Reverse worker: Spotify OAuth Redirect URI"
+                  help="URI de callback registado no Spotify Dashboard para concluir OAuth do reverse worker."
+                />
                 <Input
                   value={form.reverse_spotify_redirect_uri}
                   onChange={(event) =>
@@ -392,7 +429,10 @@ function Settings() {
             </div>
             <div className="columns is-multiline mb-2">
               <div className="column is-3-desktop is-6-tablet">
-                <label className="label has-text-light">Reverse poll (s)</label>
+                <HelpLabel
+                  text="Reverse poll (s)"
+                  help="Intervalo entre ciclos do reverse worker (leitura de likes e processamento)."
+                />
                 <Input
                   type="number"
                   min="30"
@@ -404,7 +444,10 @@ function Settings() {
                 />
               </div>
               <div className="column is-3-desktop is-6-tablet">
-                <label className="label has-text-light">Reverse liked limit</label>
+                <HelpLabel
+                  text="Reverse liked limit"
+                  help="Numero maximo de likes lidos por ciclo no YouTube Music."
+                />
                 <Input
                   type="number"
                   min="1"
@@ -416,7 +459,10 @@ function Settings() {
                 />
               </div>
               <div className="column is-3-desktop is-6-tablet">
-                <label className="label has-text-light">Spotiflac timeout (s)</label>
+                <HelpLabel
+                  text="Spotiflac timeout (s)"
+                  help="Tempo maximo por execucao de download antes de marcar erro."
+                />
                 <Input
                   type="number"
                   min="10"
@@ -430,7 +476,49 @@ function Settings() {
                   }
                 />
               </div>
+              <div className="column is-3-desktop is-6-tablet">
+                <HelpLabel
+                  text="Spotiflac loop (min)"
+                  help="0 = uma execucao por ciclo do worker; >0 deixa o spotiflac em loop interno."
+                />
+                <Input
+                  type="number"
+                  min="0"
+                  max="1440"
+                  value={form.reverse_spotiflac_loop_minutes}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      reverse_spotiflac_loop_minutes: Number(event.target.value || 0),
+                    }))
+                  }
+                />
+              </div>
             </div>
+            <div className="columns is-multiline mb-2">
+              <div className="column is-3-desktop is-6-tablet">
+                <HelpLabel
+                  text="Delay entre tracks reverse (ms)"
+                  help="Pausa entre tracks no reverse worker para reduzir rate-limit e sobrecarga."
+                />
+                <Input
+                  type="number"
+                  min="0"
+                  max="30000"
+                  value={form.reverse_track_spacing_ms}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      reverse_track_spacing_ms: Number(event.target.value || 0),
+                    }))
+                  }
+                />
+              </div>
+            </div>
+            <p className="has-text-grey is-size-7 mb-2">
+              Spotiflac loop em <code>0</code> = single run por ciclo do worker. Usa delay entre tracks para reduzir
+              risco de rate-limit.
+            </p>
             <div className="field mb-2">
               <label className="checkbox has-text-light">
                 <input
@@ -442,6 +530,9 @@ function Settings() {
                 />{' '}
                 Reverse worker: adicionar tambem na playlist do Spotify
               </label>
+              <p className="has-text-grey is-size-7 mt-1">
+                Se desativado, o reverse so trata downloads/historico e nao mexe em playlists Spotify.
+              </p>
             </div>
             <div className="field mb-2">
               <label className="checkbox has-text-light">
@@ -454,10 +545,17 @@ function Settings() {
                 />{' '}
                 Ativar download via Spotiflac
               </label>
+              <p className="has-text-grey is-size-7 mt-1">
+                Quando ativo, so marca como processado apos download valido.
+              </p>
             </div>
+            <h3 className="title is-6 has-text-light mb-3 mt-2">Spotiflac</h3>
             <div className="columns is-multiline mb-2">
               <div className="column is-5-desktop is-12-tablet">
-                <label className="label has-text-light">Spotiflac output dir</label>
+                <HelpLabel
+                  text="Spotiflac output dir"
+                  help="Diretorio dentro do container onde os ficheiros sao gravados (deve estar em volume persistente)."
+                />
                 <Input
                   value={form.reverse_spotiflac_output_dir}
                   onChange={(event) =>
@@ -467,7 +565,10 @@ function Settings() {
                 />
               </div>
               <div className="column is-7-desktop is-12-tablet">
-                <label className="label has-text-light">Spotiflac command template</label>
+                <HelpLabel
+                  text="Spotiflac command template"
+                  help="Comando CLI alternativo; placeholders: {spotify_url}, {output_dir}, {artist}, {title}."
+                />
                 <Input
                   value={form.reverse_spotiflac_command_template}
                   onChange={(event) =>
@@ -484,7 +585,10 @@ function Settings() {
             </p>
             <div className="columns is-multiline mb-4">
               <div className="column is-9-desktop is-12-tablet">
-                <label className="label has-text-light">Reverse OAuth response URL (copiar/colar)</label>
+                <HelpLabel
+                  text="Reverse OAuth response URL (copiar/colar)"
+                  help="URL final do callback Spotify com ?code=... para guardar token sem modo interativo."
+                />
                 <Input
                   value={reverseSpotifyResponseUrl}
                   onChange={(event) => setReverseSpotifyResponseUrl(event.target.value)}
@@ -509,9 +613,13 @@ function Settings() {
               Estes campos controlam o worker_reverse (likes no YTMusic para playlist privada no Spotify).
             </p>
 
+            <h3 className="title is-6 has-text-light mb-3 mt-2">OAuth Frontend (Importar artistas)</h3>
             <div className="columns is-multiline mb-2">
               <div className="column is-6-desktop is-12-tablet">
-                <label className="label has-text-light">Spotify OAuth Client ID (frontend)</label>
+                <HelpLabel
+                  text="Spotify OAuth Client ID (frontend)"
+                  help="Client ID usado no browser para login do utilizador e import de artistas seguidos."
+                />
                 <Input
                   value={form.spotify_oauth_client_id}
                   onChange={(event) =>
@@ -521,7 +629,10 @@ function Settings() {
                 />
               </div>
               <div className="column is-6-desktop is-12-tablet">
-                <label className="label has-text-light">Spotify OAuth Redirect URI</label>
+                <HelpLabel
+                  text="Spotify OAuth Redirect URI"
+                  help="Callback do frontend registado na app Spotify (ex.: http://SEU_IP:3001/artists)."
+                />
                 <Input
                   value={form.spotify_oauth_redirect_uri}
                   onChange={(event) =>
@@ -543,6 +654,9 @@ function Settings() {
                 />{' '}
                 Ativar fetch automatico diario
               </label>
+              <p className="has-text-grey is-size-7 mt-1">
+                O backend cria automaticamente jobs diarios de fetch de releases conforme hora/janela.
+              </p>
             </div>
 
             <div className="columns is-multiline mb-4">
@@ -565,7 +679,10 @@ function Settings() {
 
             <div className="columns is-multiline mb-2">
               <div className="column is-3-desktop is-6-tablet">
-                <label className="label has-text-light">Hora diaria (UTC)</label>
+                <HelpLabel
+                  text="Hora diaria (UTC)"
+                  help="Horario do fetch automatico; usa fuso UTC."
+                />
                 <div className="columns is-mobile">
                   <div className="column pr-1">
                     <div className="select is-fullwidth">
@@ -595,7 +712,10 @@ function Settings() {
                 </div>
               </div>
               <div className="column is-3-desktop is-6-tablet">
-                <label className="label has-text-light">Janela (dias para tras)</label>
+                <HelpLabel
+                  text="Janela (dias para tras)"
+                  help="Dias para tras usados no fetch automatico (ex.: 1 = ontem/hoje)."
+                />
                 <Input
                   type="number"
                   min="1"
@@ -610,7 +730,10 @@ function Settings() {
                 />
               </div>
               <div className="column is-6-desktop is-12-tablet">
-                <label className="label has-text-light">Spotify include groups</label>
+                <HelpLabel
+                  text="Spotify include groups"
+                  help="Tipos de lancamento considerados na procura de releases."
+                />
                 <div className="is-flex is-flex-wrap-wrap" style={{ gap: '0.75rem' }}>
                   {SPOTIFY_GROUP_OPTIONS.map((group) => (
                     <label className="checkbox has-text-light" key={group}>
@@ -628,10 +751,14 @@ function Settings() {
                 </p>
               </div>
             </div>
+            <h3 className="title is-6 has-text-light mb-3 mt-2">Performance e Ritmos de Worker</h3>
 
             <div className="columns is-multiline mb-2">
               <div className="column is-4-desktop is-12-tablet">
-                <label className="label has-text-light">Delay entre artistas (ms)</label>
+                <HelpLabel
+                  text="Delay entre artistas (ms)"
+                  help="Pausa no fetch local entre artistas para reduzir 429 da API Spotify."
+                />
                 <Input
                   type="number"
                   min="0"
@@ -646,7 +773,10 @@ function Settings() {
                 />
               </div>
               <div className="column is-4-desktop is-6-tablet">
-                <label className="label has-text-light">Workers para /releases</label>
+                <HelpLabel
+                  text="Workers para /releases"
+                  help="Numero de workers paralelos no fetch de releases (mais alto = mais rapido/mais risco 429)."
+                />
                 <Input
                   type="number"
                   min="1"
@@ -661,7 +791,10 @@ function Settings() {
                 />
               </div>
               <div className="column is-4-desktop is-6-tablet">
-                <label className="label has-text-light">Worker retry backend (s)</label>
+                <HelpLabel
+                  text="Worker retry backend (s)"
+                  help="Tempo de espera quando o worker principal falha a comunicar com backend."
+                />
                 <Input
                   type="number"
                   min="5"
@@ -682,7 +815,10 @@ function Settings() {
 
             <div className="columns is-multiline mb-2">
               <div className="column is-6-desktop is-12-tablet">
-                <label className="label has-text-light">Worker idle (s)</label>
+                <HelpLabel
+                  text="Worker idle (s)"
+                  help="Tempo de espera quando a fila csv_releases nao tem itens."
+                />
                 <Input
                   type="number"
                   min="5"
@@ -697,7 +833,10 @@ function Settings() {
                 />
               </div>
               <div className="column is-6-desktop is-12-tablet">
-                <label className="label has-text-light">Worker pos-processamento (s)</label>
+                <HelpLabel
+                  text="Worker pos-processamento (s)"
+                  help="Pausa apos processar itens antes de verificar novamente a fila."
+                />
                 <Input
                   type="number"
                   min="1"
