@@ -30,15 +30,6 @@ services:
     environment:
       SPOTIFY_CLIENT_ID: "${SPOTIFY_CLIENT_ID:-}"
       SPOTIFY_CLIENT_SECRET: "${SPOTIFY_CLIENT_SECRET:-}"
-      SPOTIFY_INCLUDE_GROUPS: "${SPOTIFY_INCLUDE_GROUPS:-album,single}"
-      SPOTIFY_MARKET: "${SPOTIFY_MARKET:-PT}"
-      LOCAL_FETCH_SPACING_MS: "${LOCAL_FETCH_SPACING_MS:-120}"
-      RELEASE_WORKERS: "${RELEASE_WORKERS:-10}"
-      YTMUSIC_PLAYLIST_ID: "${YTMUSIC_PLAYLIST_ID:-}"
-      WORKER_BACKEND_RETRY_SECONDS: "${WORKER_BACKEND_RETRY_SECONDS:-15}"
-      WORKER_IDLE_SECONDS: "${WORKER_IDLE_SECONDS:-20}"
-      WORKER_PROCESSED_SLEEP_SECONDS: "${WORKER_PROCESSED_SLEEP_SECONDS:-10}"
-      WORKER_ALBUM_AUDIO_ONLY_STRICT: "${WORKER_ALBUM_AUDIO_ONLY_STRICT:-true}"
     volumes:
       - ./backend:/app
       - ./data:/data
@@ -51,15 +42,27 @@ services:
     container_name: ytmusic-worker
     environment:
       BACKEND_URL: http://backend:8000
-      WORKER_BACKEND_RETRY_SECONDS: "${WORKER_BACKEND_RETRY_SECONDS:-15}"
-      WORKER_IDLE_SECONDS: "${WORKER_IDLE_SECONDS:-20}"
-      WORKER_PROCESSED_SLEEP_SECONDS: "${WORKER_PROCESSED_SLEEP_SECONDS:-10}"
-      WORKER_ALBUM_AUDIO_ONLY_STRICT: "${WORKER_ALBUM_AUDIO_ONLY_STRICT:-true}"
       YTMUSIC_AUTH_FILE: "${YTMUSIC_AUTH_FILE:-/data/ytmusic_auth.json}"
-      YTMUSIC_PLAYLIST_ID: "${YTMUSIC_PLAYLIST_ID:-}"
       YTMUSIC_USER: "${YTMUSIC_USER:-}"
     volumes:
       - ./worker:/app
+      - ./data:/data
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  worker-reverse:
+    build:
+      context: ./worker_reverse
+      dockerfile: Dockerfile
+    container_name: ytmusic-worker-reverse
+    environment:
+      REVERSE_BACKEND_URL: http://backend:8000
+      REVERSE_YTMUSIC_AUTH_FILE: "${REVERSE_YTMUSIC_AUTH_FILE:-/data/ytmusic_auth.json}"
+      REVERSE_YTMUSIC_USER: "${REVERSE_YTMUSIC_USER:-}"
+      REVERSE_SPOTIFY_CACHE_PATH: "${REVERSE_SPOTIFY_CACHE_PATH:-/data/spotify_oauth_cache_reverse.json}"
+    volumes:
+      - ./worker_reverse:/app
       - ./data:/data
     depends_on:
       - backend

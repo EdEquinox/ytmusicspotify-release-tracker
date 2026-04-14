@@ -68,6 +68,7 @@ export const getAlbumTracks = (albumId) =>
 
 export const listErrors = () => request('/erros')
 export const deleteError = (errorId) => request(`/erros/${errorId}`, { method: 'DELETE' })
+export const listHistorico = () => request('/historico')
 export const getSettings = () => request('/settings')
 export const updateSettings = (payload) =>
   request('/settings', { method: 'PUT', body: JSON.stringify(payload) })
@@ -75,4 +76,9 @@ export const importYTMusicAuth = (authJson) =>
   request('/settings/ytmusic-auth/import', {
     method: 'POST',
     body: JSON.stringify({ auth_json: authJson }),
+  })
+export const completeReverseSpotifyOAuth = (responseUrl) =>
+  request('/settings/reverse-spotify-oauth/complete', {
+    method: 'POST',
+    body: JSON.stringify({ response_url: responseUrl }),
   })

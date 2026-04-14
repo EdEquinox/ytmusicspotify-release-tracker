@@ -5,6 +5,7 @@ import ManageArtists from 'components/local/ManageArtists'
 import SyncErrors from 'components/local/SyncErrors'
 import Settings from 'components/local/Settings'
 import SetupGuide from 'components/local/SetupGuide'
+import HistoryDownloads from 'components/local/HistoryDownloads'
 
 function Routes() {
   return (
@@ -13,6 +14,7 @@ function Routes() {
         <Route index element={<Releases />} />
         <Route path="artists" element={<ManageArtists />} />
         <Route path="errors" element={<SyncErrors />} />
+        <Route path="history" element={<HistoryDownloads />} />
         <Route path="settings" element={<Settings />} />
         <Route path="setup" element={<SetupGuide />} />
       </Route>

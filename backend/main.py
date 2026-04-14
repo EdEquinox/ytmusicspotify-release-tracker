@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Lock, Thread
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
@@ -25,6 +25,7 @@ RELEASES_FILE = DATA_DIR / "releases.json"
 RELEASE_FETCH_STATE_FILE = DATA_DIR / "release_fetch_state.json"
 CSV_RELEASES_FILE = DATA_DIR / "csv_releases.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
+HISTORICO_FILE = DATA_DIR / "historico.json"
 SPOTIFY_ACCOUNTS_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_URL = "https://api.spotify.com/v1"
 DEFAULT_WORKERS = 10
@@ -65,6 +66,7 @@ class SyncErrorCreate(BaseModel):
 class SyncErrorItem(SyncErrorCreate):
     id: str
     created_at: str
+    attempts: int = Field(default=1, ge=1)
 
 
 class SpotifyArtistItem(BaseModel):
@@ -151,6 +153,17 @@ class AppSettings(BaseModel):
     spotify_client_secret: str = ""
     spotify_oauth_client_id: str = ""
     spotify_oauth_redirect_uri: str = ""
+    reverse_spotify_playlist_id: str = ""
+    reverse_poll_seconds: int = 300
+    reverse_liked_limit: int = 100
+    reverse_spotify_redirect_uri: str = "http://localhost:8080/callback"
+    reverse_spotify_add_to_playlist: bool = True
+    reverse_spotiflac_enabled: bool = False
+    reverse_spotiflac_output_dir: str = "/data/downloads"
+    reverse_spotiflac_command_template: str = (
+        'spotiflac "{spotify_url}" "{output_dir}"'
+    )
+    reverse_spotiflac_timeout_seconds: int = 600
     last_auto_fetch_date: str | None = None
 
 
@@ -171,6 +184,17 @@ class AppSettingsUpdate(BaseModel):
     spotify_client_secret: str = ""
     spotify_oauth_client_id: str = ""
     spotify_oauth_redirect_uri: str = ""
+    reverse_spotify_playlist_id: str = ""
+    reverse_poll_seconds: int = Field(default=300, ge=30, le=86400)
+    reverse_liked_limit: int = Field(default=100, ge=1, le=5000)
+    reverse_spotify_redirect_uri: str = "http://localhost:8080/callback"
+    reverse_spotify_add_to_playlist: bool = True
+    reverse_spotiflac_enabled: bool = False
+    reverse_spotiflac_output_dir: str = "/data/downloads"
+    reverse_spotiflac_command_template: str = (
+        'spotiflac "{spotify_url}" "{output_dir}"'
+    )
+    reverse_spotiflac_timeout_seconds: int = Field(default=600, ge=10, le=86400)
 
 
 class ArtistsImportPayload(BaseModel):
@@ -180,6 +204,17 @@ class ArtistsImportPayload(BaseModel):
 
 class YTMusicAuthImportPayload(BaseModel):
     auth_json: dict
+
+
+class HistoricoItem(BaseModel):
+    id: str = Field(min_length=1)
+    artista: str = Field(min_length=1)
+    titulo: str = Field(min_length=1)
+    created_at: str | None = None
+
+
+class ReverseSpotifyOAuthCompletePayload(BaseModel):
+    response_url: str = Field(min_length=1)
 
 
 def _ensure_data_file(path: Path) -> None:
@@ -228,35 +263,29 @@ def _write_json_object(path: Path, payload: dict) -> None:
 
 
 def _default_settings_payload() -> dict:
-    def _env_int(name: str, default: int) -> int:
-        raw = os.getenv(name, "").strip()
-        if not raw:
-            return default
-        try:
-            return int(raw)
-        except ValueError:
-            return default
-
-    def _env_bool(name: str, default: bool) -> bool:
-        raw = os.getenv(name, "").strip().lower()
-        if not raw:
-            return default
-        return raw in {"1", "true", "yes", "on"}
-
     return AppSettings(
-        playlist_id=os.getenv("YTMUSIC_PLAYLIST_ID", "").strip(),
+        playlist_id="",
         spotify_client_id=os.getenv("SPOTIFY_CLIENT_ID", "").strip(),
         spotify_client_secret=os.getenv("SPOTIFY_CLIENT_SECRET", "").strip(),
         spotify_oauth_client_id=os.getenv("REACT_APP_SPOTIFY_CLIENT_ID", "").strip(),
         spotify_oauth_redirect_uri=os.getenv("REACT_APP_SPOTIFY_REDIRECT_URI", "").strip(),
-        spotify_include_groups=os.getenv("SPOTIFY_INCLUDE_GROUPS", "album,single").strip() or "album,single",
-        spotify_market=os.getenv("SPOTIFY_MARKET", "").strip(),
-        local_fetch_spacing_ms=max(_env_int("LOCAL_FETCH_SPACING_MS", 120), 0),
-        release_workers=max(_env_int("RELEASE_WORKERS", DEFAULT_WORKERS), 1),
-        worker_idle_seconds=max(_env_int("WORKER_IDLE_SECONDS", 20), 5),
-        worker_processed_sleep_seconds=max(_env_int("WORKER_PROCESSED_SLEEP_SECONDS", 10), 1),
-        worker_backend_retry_seconds=max(_env_int("WORKER_BACKEND_RETRY_SECONDS", 15), 5),
-        worker_album_audio_only_strict=_env_bool("WORKER_ALBUM_AUDIO_ONLY_STRICT", True),
+        reverse_spotify_playlist_id="",
+        reverse_poll_seconds=300,
+        reverse_liked_limit=100,
+        reverse_spotify_redirect_uri="http://localhost:8080/callback",
+        reverse_spotify_add_to_playlist=True,
+        reverse_spotiflac_enabled=False,
+        reverse_spotiflac_output_dir="/data/downloads",
+        reverse_spotiflac_command_template='spotiflac "{spotify_url}" "{output_dir}"',
+        reverse_spotiflac_timeout_seconds=600,
+        spotify_include_groups="album,single",
+        spotify_market="",
+        local_fetch_spacing_ms=120,
+        release_workers=max(DEFAULT_WORKERS, 1),
+        worker_idle_seconds=20,
+        worker_processed_sleep_seconds=10,
+        worker_backend_retry_seconds=15,
+        worker_album_audio_only_strict=True,
     ).model_dump()
 
 
@@ -317,6 +346,14 @@ def _get_spotify_credentials() -> tuple[str, str]:
             detail="Spotify credentials are missing. Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.",
         )
     return client_id, client_secret
+
+
+def _reverse_spotify_cache_path() -> Path:
+    raw = os.getenv("REVERSE_SPOTIFY_CACHE_PATH", "/data/spotify_oauth_cache_reverse.json").strip()
+    path = Path(raw)
+    if not path.is_absolute():
+        path = ROOT_DIR / raw
+    return path
 
 
 def _spotify_request(
@@ -894,10 +931,83 @@ def update_settings(payload: AppSettingsUpdate) -> AppSettings:
                 "spotify_client_secret": payload.spotify_client_secret.strip(),
                 "spotify_oauth_client_id": payload.spotify_oauth_client_id.strip(),
                 "spotify_oauth_redirect_uri": payload.spotify_oauth_redirect_uri.strip(),
+                "reverse_spotify_playlist_id": payload.reverse_spotify_playlist_id.strip(),
+                "reverse_poll_seconds": payload.reverse_poll_seconds,
+                "reverse_liked_limit": payload.reverse_liked_limit,
+                "reverse_spotify_redirect_uri": payload.reverse_spotify_redirect_uri.strip(),
+                "reverse_spotify_add_to_playlist": payload.reverse_spotify_add_to_playlist,
+                "reverse_spotiflac_enabled": payload.reverse_spotiflac_enabled,
+                "reverse_spotiflac_output_dir": payload.reverse_spotiflac_output_dir.strip() or "/data/downloads",
+                "reverse_spotiflac_command_template": payload.reverse_spotiflac_command_template.strip()
+                or 'spotiflac "{spotify_url}" "{output_dir}"',
+                "reverse_spotiflac_timeout_seconds": payload.reverse_spotiflac_timeout_seconds,
             }
         )
         _write_settings(updated)
     return updated
+
+
+@app.post("/settings/reverse-spotify-oauth/complete")
+def complete_reverse_spotify_oauth(payload: ReverseSpotifyOAuthCompletePayload) -> dict[str, str]:
+    response_url = payload.response_url.strip()
+    parsed = urlparse(response_url)
+    code = parse_qs(parsed.query).get("code", [""])[0].strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="response_url must include ?code=...")
+
+    with _settings_lock:
+        settings = _read_settings()
+    client_id = (settings.spotify_oauth_client_id or settings.spotify_client_id or "").strip() or os.getenv(
+        "SPOTIFY_CLIENT_ID", ""
+    ).strip()
+    client_secret = (settings.spotify_client_secret or "").strip() or os.getenv("SPOTIFY_CLIENT_SECRET", "").strip()
+    redirect_uri = (
+        settings.reverse_spotify_redirect_uri
+        or settings.spotify_oauth_redirect_uri
+        or os.getenv("REVERSE_SPOTIFY_REDIRECT_URI", "")
+        or "http://127.0.0.1:8080/callback"
+    ).strip()
+
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=400, detail="Spotify client_id/client_secret missing in settings/env.")
+
+    basic = b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("utf-8")
+    body = urlencode(
+        {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": redirect_uri,
+        }
+    ).encode("utf-8")
+    request = Request(
+        url=SPOTIFY_ACCOUNTS_URL,
+        method="POST",
+        headers={
+            "Authorization": f"Basic {basic}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        data=body,
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            token_payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8") if exc.fp else str(exc)
+        raise HTTPException(status_code=400, detail=f"Spotify token exchange failed: {detail}") from exc
+    except URLError as exc:
+        raise HTTPException(status_code=502, detail=f"Spotify token exchange network error: {exc}") from exc
+
+    access_token = str(token_payload.get("access_token", "")).strip()
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Spotify token exchange returned no access_token.")
+
+    expires_in = int(token_payload.get("expires_in") or 3600)
+    token_payload["expires_at"] = int(datetime.now(UTC).timestamp()) + expires_in
+
+    cache_path = _reverse_spotify_cache_path()
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(token_payload, ensure_ascii=True, indent=2) + "\n")
+    return {"status": "ok", "message": "Reverse Spotify OAuth token cached successfully."}
 
 
 @app.get("/artistas")
@@ -1290,9 +1400,28 @@ def list_errors() -> list[dict]:
 @app.post("/erros")
 def create_error(error: SyncErrorCreate) -> SyncErrorItem:
     errors = _read_json_list(ERRORS_FILE)
+    normalized_artist = error.artist_name.strip().lower()
+    normalized_track = error.track_name.strip().lower()
+
+    for index, item in enumerate(errors):
+        current_artist = str(item.get("artist_name", "")).strip().lower()
+        current_track = str(item.get("track_name", "")).strip().lower()
+        if current_artist != normalized_artist or current_track != normalized_track:
+            continue
+
+        updated_item = dict(item)
+        updated_item["reason"] = error.reason
+        updated_item["album_name"] = error.album_name
+        current_attempts = int(updated_item.get("attempts", 1) or 1)
+        updated_item["attempts"] = max(current_attempts + 1, 1)
+        errors[index] = updated_item
+        _write_json_list(ERRORS_FILE, errors)
+        return SyncErrorItem(**updated_item)
+
     new_error = SyncErrorItem(
         id=str(uuid4()),
         created_at=datetime.now(UTC).isoformat(),
+        attempts=1,
         **error.model_dump(),
     )
     errors.append(new_error.model_dump())
@@ -1321,3 +1450,21 @@ def import_ytmusic_auth(payload: YTMusicAuthImportPayload) -> dict[str, str]:
     except PermissionError as exc:
         raise HTTPException(status_code=500, detail=f"No write permission to {auth_path}") from exc
     return {"status": "ok"}
+
+
+@app.get("/historico")
+def list_historico() -> list[dict]:
+    return _read_json_list(HISTORICO_FILE)
+
+
+@app.post("/historico")
+def create_historico(item: HistoricoItem) -> dict:
+    historico = _read_json_list(HISTORICO_FILE)
+    if any(str(existing.get("id")) == item.id for existing in historico):
+        return {"status": "exists"}
+    payload = item.model_dump()
+    if not payload.get("created_at"):
+        payload["created_at"] = datetime.now(UTC).isoformat()
+    historico.append(payload)
+    _write_json_list(HISTORICO_FILE, historico)
+    return {"status": "added"}

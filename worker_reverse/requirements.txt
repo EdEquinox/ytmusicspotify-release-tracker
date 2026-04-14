@@ -1,0 +1,4 @@
+requests
+ytmusicapi
+spotipy
+spotiflac

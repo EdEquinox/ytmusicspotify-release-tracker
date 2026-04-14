@@ -1,0 +1,524 @@
+from __future__ import annotations
+
+import os
+import re
+import time
+import json
+import subprocess
+import shlex
+from typing import Any
+
+import requests
+import spotipy
+from spotipy.oauth2 import SpotifyOAuth
+from ytmusicapi import YTMusic
+from ytmusicapi.helpers import get_authorization, sapisid_from_cookie
+from SpotiFLAC import SpotiFLAC
+
+
+def _normalize(value: str) -> str:
+    lowered = value.lower().strip()
+    lowered = re.sub(r"\s+", " ", lowered)
+    return lowered
+
+
+def _track_key(artist: str, title: str) -> str:
+    return f"{_normalize(artist)}::{_normalize(title)}"
+
+
+def _read_settings(backend_url: str) -> dict[str, Any]:
+    response = requests.get(f"{backend_url}/settings", timeout=20)
+    response.raise_for_status()
+    payload = response.json()
+    return payload if isinstance(payload, dict) else {}
+
+
+def _list_historico_ids(backend_url: str) -> set[str]:
+    response = requests.get(f"{backend_url}/historico", timeout=20)
+    response.raise_for_status()
+    rows = response.json()
+    if not isinstance(rows, list):
+        return set()
+    return {str(item.get("id", "")).strip() for item in rows if str(item.get("id", "")).strip()}
+
+
+def _add_historico(backend_url: str, track_id: str, artist: str, title: str) -> None:
+    requests.post(
+        f"{backend_url}/historico",
+        timeout=20,
+        json={"id": track_id, "artista": artist, "titulo": title},
+    ).raise_for_status()
+
+
+def _report_not_found(backend_url: str, artist: str, title: str) -> None:
+    requests.post(
+        f"{backend_url}/erros",
+        timeout=20,
+        json={
+            "track_name": title,
+            "artist_name": artist,
+            "reason": f"NAO_NO_SPOTIFY: Aprovada no YTM, mas nao encontrada no Spotify ({artist} - {title})",
+        },
+    ).raise_for_status()
+
+
+def _report_error(backend_url: str, artist: str, title: str, reason: str) -> None:
+    requests.post(
+        f"{backend_url}/erros",
+        timeout=20,
+        json={
+            "track_name": title,
+            "artist_name": artist,
+            "reason": reason,
+        },
+    ).raise_for_status()
+
+
+def _clear_resolved_errors(backend_url: str, artist: str, title: str) -> None:
+    try:
+        response = requests.get(f"{backend_url}/erros", timeout=20)
+        response.raise_for_status()
+        rows = response.json()
+    except Exception:
+        return
+
+    if not isinstance(rows, list):
+        return
+
+    artist_norm = _normalize(artist)
+    title_norm = _normalize(title)
+    for item in rows:
+        current_artist = _normalize(str(item.get("artist_name", "")))
+        current_title = _normalize(str(item.get("track_name", "")))
+        reason = str(item.get("reason", ""))
+        if current_artist != artist_norm or current_title != title_norm:
+            continue
+        if not (
+            reason.startswith("DOWNLOAD_SPOTIFLAC:")
+            or reason.startswith("NAO_NO_SPOTIFY:")
+        ):
+            continue
+        error_id = str(item.get("id", "")).strip()
+        if not error_id:
+            continue
+        try:
+            requests.delete(f"{backend_url}/erros/{error_id}", timeout=20).raise_for_status()
+        except Exception:
+            continue
+
+
+def _pick_spotify_track_id(results: dict[str, Any], artist: str, title: str) -> str | None:
+    tracks = (((results or {}).get("tracks") or {}).get("items") or [])
+    target_artist = _normalize(artist)
+    target_title = _normalize(title)
+    for item in tracks:
+        result_title = _normalize(str(item.get("name", "")))
+        if target_title and target_title not in result_title and result_title not in target_title:
+            continue
+        artists = item.get("artists") or []
+        artist_names = [_normalize(str(row.get("name", ""))) for row in artists]
+        if target_artist and any(target_artist in current for current in artist_names):
+            return str(item.get("id", "")).strip() or None
+    if tracks:
+        return str(tracks[0].get("id", "")).strip() or None
+    return None
+
+
+def _build_spotify_client(
+    backend_url: str,
+    cache_path: str,
+    default_client_id: str,
+    default_client_secret: str,
+    default_redirect_uri: str,
+) -> tuple[spotipy.Spotify, SpotifyOAuth]:
+    settings: dict[str, Any] = {}
+    try:
+        settings = _read_settings(backend_url)
+    except Exception:
+        # Backend may not be up yet; fallback to env values for startup resilience.
+        settings = {}
+
+    client_id = str(
+        settings.get("spotify_oauth_client_id")
+        or settings.get("spotify_client_id")
+        or default_client_id
+    ).strip()
+    client_secret = str(settings.get("spotify_client_secret") or default_client_secret).strip()
+    redirect_uri = str(
+        settings.get("reverse_spotify_redirect_uri")
+        or settings.get("spotify_oauth_redirect_uri")
+        or default_redirect_uri
+    ).strip()
+    if not client_id or not client_secret:
+        raise RuntimeError("Spotify OAuth credentials missing. Configure in Settings or env.")
+    if not redirect_uri:
+        raise RuntimeError("Spotify OAuth redirect URI missing. Configure in Settings or env.")
+    auth_manager = SpotifyOAuth(
+        client_id=client_id,
+        client_secret=client_secret,
+        redirect_uri=redirect_uri,
+        scope="playlist-modify-private playlist-modify-public",
+        cache_path=cache_path,
+        open_browser=False,
+    )
+    return spotipy.Spotify(auth_manager=auth_manager), auth_manager
+
+
+def _load_ytmusic_client(auth_file: str, user_id: str | None = None) -> YTMusic:
+    with open(auth_file, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("Invalid YTMUSIC auth file format")
+
+    # Support browser-header JSON auth format (cookie/origin keys).
+    if "cookie" in payload:
+        cookie = str(payload.get("cookie", ""))
+        origin = str(payload.get("origin", "https://music.youtube.com"))
+        if not cookie:
+            raise RuntimeError("ytmusic_auth.json missing cookie")
+
+        sapisid = sapisid_from_cookie(cookie)
+        authorization = get_authorization(f"{sapisid} {origin}")
+        headers = {
+            "cookie": cookie,
+            "origin": origin,
+            "user-agent": str(payload.get("user-agent", "")),
+            "x-goog-authuser": str(payload.get("x-goog-authuser", "0")),
+            "x-goog-visitor-id": str(payload.get("x-goog-visitor-id", "")),
+            "authorization": authorization,
+        }
+        return YTMusic(auth=headers, user=user_id or None)
+
+    # Fallback for native ytmusicapi OAuth JSON format.
+    return YTMusic(auth=auth_file, user=user_id or None)
+
+
+def _sync_likes_cycle(
+    backend_url: str,
+    ytmusic: YTMusic,
+    spotify: spotipy.Spotify,
+    spotify_playlist_id: str,
+    liked_limit: int,
+    add_to_playlist: bool,
+    spotiflac_enabled: bool,
+    spotiflac_output_dir: str,
+    spotiflac_command_template: str,
+    spotiflac_timeout_seconds: int,
+    spotiflac_services: list[str],
+    spotiflac_filename_format: str,
+    spotiflac_use_artist_subfolders: bool,
+    spotiflac_use_album_subfolders: bool,
+) -> None:
+    historico_ids = _list_historico_ids(backend_url)
+    payload = ytmusic.get_liked_songs(limit=liked_limit) or {}
+    tracks = payload.get("tracks") or []
+    print(f"[reverse] Loaded {len(tracks)} liked songs from YTMusic")
+
+    for track in tracks:
+        artists = track.get("artists") or []
+        artist = str((artists[0] or {}).get("name", "")).strip() if artists else ""
+        title = str(track.get("title", "")).strip()
+        if not artist or not title:
+            continue
+
+        key = _track_key(artist, title)
+        if key in historico_ids:
+            continue
+
+        query = f"track:{title} artist:{artist}"
+        results = spotify.search(q=query, type="track", limit=5)
+        spotify_track_id = _pick_spotify_track_id(results, artist, title)
+
+        if spotify_track_id:
+            spotify_url = f"https://open.spotify.com/track/{spotify_track_id}"
+            download_ok = True
+            if spotiflac_enabled:
+                ok, detail = _download_with_spotiflac(
+                    spotify_url=spotify_url,
+                    artist=artist,
+                    title=title,
+                    output_dir=spotiflac_output_dir,
+                    command_template=spotiflac_command_template,
+                    timeout_seconds=spotiflac_timeout_seconds,
+                    services=spotiflac_services,
+                    filename_format=spotiflac_filename_format,
+                    use_artist_subfolders=spotiflac_use_artist_subfolders,
+                    use_album_subfolders=spotiflac_use_album_subfolders,
+                )
+                if not ok:
+                    download_ok = False
+                    _report_error(
+                        backend_url,
+                        artist,
+                        title,
+                        f"DOWNLOAD_SPOTIFLAC: {detail}",
+                    )
+            if not download_ok:
+                # Keep out of historico so worker can retry later.
+                continue
+            if add_to_playlist:
+                spotify.playlist_add_items(spotify_playlist_id, [spotify_track_id])
+            _add_historico(backend_url, key, artist, title)
+            _clear_resolved_errors(backend_url, artist, title)
+            historico_ids.add(key)
+            print(f"[reverse] Processed: {artist} - {title}")
+            continue
+
+        _report_not_found(backend_url, artist, title)
+        _add_historico(backend_url, key, artist, title)
+        historico_ids.add(key)
+        print(f"[reverse] Not found on Spotify: {artist} - {title}")
+
+
+def _download_with_spotiflac(
+    spotify_url: str,
+    artist: str,
+    title: str,
+    output_dir: str,
+    command_template: str,
+    timeout_seconds: int,
+    services: list[str],
+    filename_format: str,
+    use_artist_subfolders: bool,
+    use_album_subfolders: bool,
+) -> tuple[bool, str]:
+    os.makedirs(output_dir, exist_ok=True)
+    before_snapshot = _files_snapshot(output_dir)
+    # Preferred path for recent spotiflac versions (Python API).
+    try:
+        # Run single-pass per worker cycle; worker loop handles retries.
+        loop_minutes = 0
+        SpotiFLAC(
+            url=spotify_url,
+            output_dir=output_dir,
+            services=services,
+            filename_format=filename_format,
+            use_artist_subfolders=use_artist_subfolders,
+            use_album_subfolders=use_album_subfolders,
+            loop=loop_minutes,
+        )
+        after_snapshot = _files_snapshot(output_dir)
+        if before_snapshot != after_snapshot:
+            return _enforce_flac_only(before_snapshot, after_snapshot)
+    except Exception as exc:
+        # Fallback to CLI mode below for compatibility.
+        api_error = str(exc)
+    else:
+        api_error = "spotiflac API finished but no file created/updated in output dir"
+    try:
+        command = command_template.format(
+            spotify_url=spotify_url,
+            output_dir=output_dir,
+            artist=artist,
+            title=title,
+        )
+    except KeyError as exc:
+        return False, f"Invalid command template placeholder: {exc}"
+
+    args = shlex.split(command)
+    if not args:
+        return False, "Empty spotiflac command"
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=max(timeout_seconds, 10),
+            check=False,
+        )
+    except FileNotFoundError:
+        return False, f"Command not found: {args[0]}"
+    except subprocess.TimeoutExpired:
+        return False, f"Timeout after {timeout_seconds}s"
+    except Exception as exc:
+        return False, str(exc)
+
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        stdout = (result.stdout or "").strip()
+        return False, stderr or stdout or api_error or f"exit_code={result.returncode}"
+    after_snapshot = _files_snapshot(output_dir)
+    if before_snapshot == after_snapshot:
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+        detail = stderr or stdout or api_error or "spotiflac finished but no file created/updated in output dir"
+        return False, detail
+    return _enforce_flac_only(before_snapshot, after_snapshot)
+
+
+def _normalize_spotiflac_template(template: str) -> str:
+    raw = (template or "").strip()
+    if not raw:
+        return 'spotiflac "{spotify_url}" "{output_dir}"'
+    # Backward compatibility with old template used in previous versions.
+    if "--output" in raw and "spotiflac download" in raw:
+        return 'spotiflac "{spotify_url}" "{output_dir}"'
+    return raw
+
+
+def _files_snapshot(root_dir: str) -> dict[str, tuple[int, int]]:
+    snapshot: dict[str, tuple[int, int]] = {}
+    for current_root, _, files in os.walk(root_dir):
+        for file_name in files:
+            path = os.path.join(current_root, file_name)
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
+            snapshot[path] = (int(stat.st_size), int(stat.st_mtime))
+    return snapshot
+
+
+def _enforce_flac_only(
+    before_snapshot: dict[str, tuple[int, int]],
+    after_snapshot: dict[str, tuple[int, int]],
+) -> tuple[bool, str]:
+    changed_paths = [
+        path
+        for path, meta in after_snapshot.items()
+        if before_snapshot.get(path) != meta
+    ]
+    if not changed_paths:
+        return False, "no downloaded files detected"
+
+    flac_paths = [path for path in changed_paths if path.lower().endswith(".flac")]
+    non_flac_paths = [path for path in changed_paths if not path.lower().endswith(".flac")]
+
+    for path in non_flac_paths:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+    if not flac_paths:
+        return False, "downloaded files were not FLAC (non-FLAC files removed)"
+    return True, "ok"
+
+
+def _ensure_spotify_token_non_interactive(auth_manager: SpotifyOAuth) -> bool:
+    token_info = auth_manager.cache_handler.get_cached_token()
+    if token_info:
+        return True
+    auth_url = auth_manager.get_authorize_url()
+    print("[reverse] Spotify OAuth token not found in cache.")
+    print(f"[reverse] Authorize once via this URL, then paste redirected URL into spotipy setup flow: {auth_url}")
+    print("[reverse] After token is cached, worker will continue automatically.")
+    return False
+
+
+def main() -> None:
+    backend_url = os.getenv("REVERSE_BACKEND_URL", "http://backend:8000").rstrip("/")
+    ytmusic_auth_file = os.getenv("REVERSE_YTMUSIC_AUTH_FILE", "/data/ytmusic_auth.json").strip()
+    ytmusic_user = os.getenv("REVERSE_YTMUSIC_USER", "").strip()
+    spotify_playlist_id = ""
+    spotify_client_id = ""
+    spotify_client_secret = ""
+    spotify_redirect_uri = ""
+    spotify_cache_path = os.getenv("REVERSE_SPOTIFY_CACHE_PATH", "/data/spotify_oauth_cache_reverse.json").strip()
+    poll_seconds = 300
+    liked_limit = 100
+    reverse_redirect_uri = spotify_redirect_uri
+    add_to_playlist = True
+    spotiflac_enabled = False
+    spotiflac_output_dir = "/data/downloads"
+    spotiflac_command_template = 'spotiflac "{spotify_url}" "{output_dir}"'
+    spotiflac_command_template = _normalize_spotiflac_template(spotiflac_command_template)
+    spotiflac_timeout_seconds = 600
+    # Force strict service selection: only Tidal.
+    spotiflac_services = ["tidal"]
+    spotiflac_filename_format = os.getenv(
+        "REVERSE_SPOTIFLAC_FILENAME_FORMAT",
+        "{title} - {artist}",
+    ).strip() or "{title} - {artist}"
+    spotiflac_use_artist_subfolders = (
+        os.getenv("REVERSE_SPOTIFLAC_USE_ARTIST_SUBFOLDERS", "true").strip().lower() != "false"
+    )
+    spotiflac_use_album_subfolders = (
+        os.getenv("REVERSE_SPOTIFLAC_USE_ALBUM_SUBFOLDERS", "true").strip().lower() != "false"
+    )
+
+    print(
+        f"[reverse] Worker started. Backend={backend_url} Playlist={spotify_playlist_id} "
+        f"LikedLimit={liked_limit} Poll={poll_seconds}s"
+    )
+
+    ytmusic = _load_ytmusic_client(ytmusic_auth_file, ytmusic_user or None)
+    spotify, spotify_auth_manager = _build_spotify_client(
+        backend_url,
+        spotify_cache_path,
+        spotify_client_id,
+        spotify_client_secret,
+        reverse_redirect_uri,
+    )
+
+    while True:
+        try:
+            settings = _read_settings(backend_url)
+            spotify_playlist_id = (
+                str(settings.get("reverse_spotify_playlist_id") or spotify_playlist_id).strip()
+            )
+            liked_limit = max(int(settings.get("reverse_liked_limit", liked_limit)), 1)
+            poll_seconds = max(int(settings.get("reverse_poll_seconds", poll_seconds)), 30)
+            add_to_playlist = bool(settings.get("reverse_spotify_add_to_playlist", add_to_playlist))
+            spotiflac_enabled = bool(settings.get("reverse_spotiflac_enabled", spotiflac_enabled))
+            spotiflac_output_dir = str(settings.get("reverse_spotiflac_output_dir", spotiflac_output_dir)).strip() or "/data/downloads"
+            spotiflac_command_template = (
+                str(settings.get("reverse_spotiflac_command_template", spotiflac_command_template)).strip()
+                or 'spotiflac "{spotify_url}" "{output_dir}"'
+            )
+            spotiflac_command_template = _normalize_spotiflac_template(spotiflac_command_template)
+            spotiflac_timeout_seconds = max(
+                int(settings.get("reverse_spotiflac_timeout_seconds", spotiflac_timeout_seconds)),
+                10,
+            )
+            # Keep strict service selection independent from settings/env.
+            spotiflac_services = ["tidal"]
+            spotiflac_filename_format = (
+                str(settings.get("reverse_spotiflac_filename_format", spotiflac_filename_format)).strip()
+                or spotiflac_filename_format
+            )
+            spotiflac_use_artist_subfolders = bool(
+                settings.get("reverse_spotiflac_use_artist_subfolders", spotiflac_use_artist_subfolders)
+            )
+            spotiflac_use_album_subfolders = bool(
+                settings.get("reverse_spotiflac_use_album_subfolders", spotiflac_use_album_subfolders)
+            )
+            configured_redirect = str(settings.get("reverse_spotify_redirect_uri", "")).strip()
+            if configured_redirect and configured_redirect != reverse_redirect_uri:
+                reverse_redirect_uri = configured_redirect
+                spotify, spotify_auth_manager = _build_spotify_client(
+                    backend_url,
+                    spotify_cache_path,
+                    spotify_client_id,
+                    spotify_client_secret,
+                    reverse_redirect_uri,
+                )
+            if add_to_playlist and not spotify_playlist_id:
+                raise RuntimeError("Missing reverse_spotify_playlist_id in Settings (or REVERSE_SPOTIFY_PLAYLIST_ID env).")
+            if not _ensure_spotify_token_non_interactive(spotify_auth_manager):
+                time.sleep(poll_seconds)
+                continue
+            _sync_likes_cycle(
+                backend_url=backend_url,
+                ytmusic=ytmusic,
+                spotify=spotify,
+                spotify_playlist_id=spotify_playlist_id,
+                liked_limit=liked_limit,
+                add_to_playlist=add_to_playlist,
+                spotiflac_enabled=spotiflac_enabled,
+                spotiflac_output_dir=spotiflac_output_dir,
+                spotiflac_command_template=spotiflac_command_template,
+                spotiflac_timeout_seconds=spotiflac_timeout_seconds,
+                spotiflac_services=spotiflac_services,
+                spotiflac_filename_format=spotiflac_filename_format,
+                spotiflac_use_artist_subfolders=spotiflac_use_artist_subfolders,
+                spotiflac_use_album_subfolders=spotiflac_use_album_subfolders,
+            )
+        except Exception as exc:
+            print(f"[reverse] Sync cycle failed: {exc}")
+        time.sleep(poll_seconds)
+
+
+if __name__ == "__main__":
+    main()

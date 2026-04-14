@@ -6,6 +6,7 @@ function SyncErrors() {
   const [errors, setErrors] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
 
   const loadErrors = async () => {
     setLoading(true)
@@ -34,6 +35,20 @@ function SyncErrors() {
     }
   }
 
+  const inferErrorType = (reason) => {
+    const value = String(reason || '').trim()
+    if (!value) return 'OUTRO'
+    const matched = value.match(/^([A-Z_]+)\s*:/)
+    return matched?.[1] || 'OUTRO'
+  }
+
+  const filteredErrors = errors.filter((item) => {
+    if (typeFilter === 'all') return true
+    return inferErrorType(item.reason) === typeFilter
+  })
+
+  const errorTypes = Array.from(new Set(errors.map((item) => inferErrorType(item.reason)))).sort()
+
   return (
     <VerticalLayout>
       <Header title="Erros de Sincronizacao">
@@ -47,6 +62,9 @@ function SyncErrors() {
           <ButtonLink to="/settings" title="Settings" icon="fas fa-gear" compact>
             Settings
           </ButtonLink>
+          <ButtonLink to="/history" title="Historico de downloads" icon="fas fa-clock-rotate-left" compact>
+            Historico
+          </ButtonLink>
           <ButtonLink to="/setup" title="Guia de configuracao" icon="fas fa-circle-info" compact>
             Guia
           </ButtonLink>
@@ -59,36 +77,49 @@ function SyncErrors() {
         {!loading && !errors.length && <p className="has-text-grey">Sem erros pendentes.</p>}
 
         {!loading && errors.length > 0 && (
-          <div className="table-container LocalTableWrap">
-            <table className="table is-fullwidth is-striped LocalTable">
-              <thead>
-                <tr>
-                  <th>Musica</th>
-                  <th>Artista</th>
-                  <th>Album</th>
-                  <th>Motivo</th>
-                  <th>Criado em</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {errors.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.track_name}</td>
-                    <td>{item.artist_name}</td>
-                    <td>{item.album_name || '-'}</td>
-                    <td>{item.reason}</td>
-                    <td>{item.created_at}</td>
-                    <td className="has-text-right">
-                      <Button onClick={() => onDelete(item.id)} text>
+          <>
+            <div className="LocalPanel mb-3">
+              <div className="field mb-0" style={{ maxWidth: 300 }}>
+                <label className="label has-text-light">Tipo de erro</label>
+                <div className="select is-fullwidth">
+                  <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+                    <option value="all">Todos</option>
+                    {errorTypes.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {!filteredErrors.length && <p className="has-text-grey">Sem erros para este filtro.</p>}
+
+            {filteredErrors.length > 0 && (
+              <div className="LocalErrorGrid">
+                {filteredErrors.map((item) => (
+                  <article className="LocalErrorCard" key={item.id}>
+                    <p className="LocalReleaseDateBadge">
+                      {inferErrorType(item.reason)}{item.created_at ? ` - ${item.created_at}` : ''}
+                    </p>
+                    <p className="LocalReleaseReason">
+                      Tentativas: {Math.max(Number(item.attempts) || 1, 1)}
+                    </p>
+                    <p className="LocalReleaseTitle">{item.track_name || 'Sem musica'}</p>
+                    <p className="LocalReleaseArtist">{item.artist_name || 'Sem artista'}</p>
+                    <p className="LocalReleaseReason">{item.album_name ? `Album: ${item.album_name}` : 'Album: -'}</p>
+                    <p className="LocalErrorReason">{item.reason}</p>
+                    <div className="LocalErrorActions">
+                      <Button className="LocalActionButton" onClick={() => onDelete(item.id)}>
                         Apagar
                       </Button>
-                    </td>
-                  </tr>
+                    </div>
+                  </article>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            )}
+          </>
         )}
         </div>
       </Content>

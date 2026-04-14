@@ -287,6 +287,9 @@ function ManageArtists() {
           <ButtonLink to="/errors" title="Erros de sincronizacao" icon="fas fa-triangle-exclamation" compact>
             Erros
           </ButtonLink>
+          <ButtonLink to="/history" title="Historico de downloads" icon="fas fa-clock-rotate-left" compact>
+            Historico
+          </ButtonLink>
           <ButtonLink to="/settings" title="Settings" icon="fas fa-gear" compact>
             Settings
           </ButtonLink>

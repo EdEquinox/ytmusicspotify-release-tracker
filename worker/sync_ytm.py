@@ -353,15 +353,12 @@ def _load_ytmusic_client(auth_file: str, user_id: str | None = None) -> YTMusic:
 def main() -> None:
     backend_url = os.getenv("BACKEND_URL", "http://backend:8000").rstrip("/")
     interval = int(os.getenv("WORKER_INTERVAL_SECONDS", "300"))
-    backend_retry_seconds = int(os.getenv("WORKER_BACKEND_RETRY_SECONDS", "15"))
-    idle_seconds = int(os.getenv("WORKER_IDLE_SECONDS", "20"))
-    processed_seconds = int(os.getenv("WORKER_PROCESSED_SLEEP_SECONDS", "10"))
-    playlist_id = os.getenv("YTMUSIC_PLAYLIST_ID", "").strip()
+    backend_retry_seconds = 15
+    idle_seconds = 20
+    processed_seconds = 10
+    playlist_id = ""
     auth_file = os.getenv("YTMUSIC_AUTH_FILE", "/data/ytmusic_auth.json").strip()
     ytmusic_user = os.getenv("YTMUSIC_USER", "").strip()
-
-    if not playlist_id:
-        raise RuntimeError("Missing YTMUSIC_PLAYLIST_ID")
 
     print(
         f"Worker started. Backend: {backend_url}. Interval: {interval}s. "
@@ -370,7 +367,7 @@ def main() -> None:
     ytmusic = _load_ytmusic_client(auth_file, ytmusic_user or None)
 
     while True:
-        strict_audio_only = os.getenv("WORKER_ALBUM_AUDIO_ONLY_STRICT", "true").strip().lower() != "false"
+        strict_audio_only = True
         try:
             settings = _fetch_backend_settings(backend_url)
             playlist_id = str(settings.get("playlist_id", "")).strip() or playlist_id

@@ -342,6 +342,37 @@
   background: linear-gradient(135deg, #2f2f2f, #1f1f1f);
 }
 
+.LocalErrorGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.LocalErrorCard {
+  background: #262626;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  min-height: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.LocalErrorReason {
+  color: #ffcccc;
+  font-size: 0.79rem;
+  line-height: 1.35;
+  margin-top: 2px;
+  word-break: break-word;
+}
+
+.LocalErrorActions {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
 @media (max-width: 768px) {
   .LocalArtistGrid {
     grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
