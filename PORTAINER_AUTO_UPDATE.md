@@ -6,9 +6,10 @@ Este projeto esta preparado para atualizar automaticamente no servidor sempre qu
 
 - Workflow GitHub Actions: `.github/workflows/deploy-portainer.yml`
 - Imagens no compose de Portainer com tag `latest`:
-  - `ghcr.io/edequinox/ytmusic-release-tracker-frontend:latest`
-  - `ghcr.io/edequinox/ytmusic-release-tracker-backend:latest`
-  - `ghcr.io/edequinox/ytmusic-release-tracker-worker:latest`
+  - `ghcr.io/edequinox/ytmusicspotify-release-tracker-frontend:latest`
+  - `ghcr.io/edequinox/ytmusicspotify-release-tracker-backend:latest`
+  - `ghcr.io/edequinox/ytmusicspotify-release-tracker-worker:latest`
+  - `ghcr.io/edequinox/ytmusicspotify-release-tracker-worker-reverse:latest`
 
 ## 2) Configurar permissao de packages no repo
 

@@ -8,7 +8,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAMESPACE: edequinox
-  APP_PREFIX: ytmusic-release-tracker
+  APP_PREFIX: ytmusicspotify-release-tracker
 
 jobs:
   build-and-push:

@@ -1,6 +1,6 @@
 services:
   frontend:
-    image: ghcr.io/edequinox/ytmusic-release-tracker-frontend:latest
+    image: ghcr.io/edequinox/ytmusicspotify-release-tracker-frontend:latest
     labels:
       - com.centurylinklabs.watchtower.enable=true
     ports:
@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ghcr.io/edequinox/ytmusic-release-tracker-backend:latest
+    image: ghcr.io/edequinox/ytmusicspotify-release-tracker-backend:latest
     labels:
       - com.centurylinklabs.watchtower.enable=true
     ports:
@@ -28,7 +28,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ghcr.io/edequinox/ytmusic-release-tracker-worker:latest
+    image: ghcr.io/edequinox/ytmusicspotify-release-tracker-worker:latest
     labels:
       - com.centurylinklabs.watchtower.enable=true
     environment:
@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
 
   worker-reverse:
-    image: ${WORKER_REVERSE_IMAGE:-ghcr.io/edequinox/ytmusic-release-tracker-worker-reverse:latest}
+    image: ${WORKER_REVERSE_IMAGE:-ghcr.io/edequinox/ytmusicspotify-release-tracker-worker-reverse:latest}
     labels:
       - com.centurylinklabs.watchtower.enable=true
     environment:
