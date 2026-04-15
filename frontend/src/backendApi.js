@@ -82,6 +82,10 @@ export const importYTMusicAuth = (authJson) =>
     method: 'POST',
     body: JSON.stringify({ auth_json: authJson }),
   })
+export const validateYTMusicAuth = () =>
+  request('/settings/ytmusic-auth/validate', {
+    method: 'POST',
+  })
 export const completeReverseSpotifyOAuth = (responseUrl) =>
   request('/settings/reverse-spotify-oauth/complete', {
     method: 'POST',

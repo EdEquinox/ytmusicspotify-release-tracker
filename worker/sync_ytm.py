@@ -211,6 +211,16 @@ def _fetch_backend_settings(backend_url: str) -> dict[str, Any]:
     return {}
 
 
+def _is_ytmusic_auth_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        "401" in message
+        or "unauthorized" in message
+        or "authentication credential" in message
+        or "login required" in message
+    )
+
+
 def _sync_cycle(
     backend_url: str, ytmusic: YTMusic, playlist_id: str, strict_audio_only: bool = True
 ) -> str:
@@ -280,6 +290,9 @@ def _sync_cycle(
                     continue
                 video_ids = [video_id]
         except Exception as exc:
+            if _is_ytmusic_auth_error(exc):
+                print(f"[worker] YTMusic auth error during search: {exc}")
+                return "ytmusic_auth_error"
             _create_error(backend_url, release, f"Failed to search on YTMusic: {exc}")
             print(f"[worker] Search failed for '{query}': {exc}")
             continue
@@ -315,6 +328,9 @@ def _sync_cycle(
                 )
                 print(f"[worker] No playlist change detected for: {query}")
         except Exception as exc:
+            if _is_ytmusic_auth_error(exc):
+                print(f"[worker] YTMusic auth error during add to playlist: {exc}")
+                return "ytmusic_auth_error"
             _create_error(backend_url, release, f"Failed to add on YTMusic: {exc}")
             print(f"[worker] Add-to-playlist failed for '{query}': {exc}")
     return "processed" if had_processed_items else "idle"
@@ -390,6 +406,14 @@ def main() -> None:
         cycle_result = _sync_cycle(backend_url, ytmusic, playlist_id, strict_audio_only)
         if cycle_result == "backend_error":
             print(f"[worker] Sleeping {backend_retry_seconds}s (backend retry)")
+            time.sleep(backend_retry_seconds)
+        elif cycle_result == "ytmusic_auth_error":
+            print("[worker] Attempting to reload YTMusic auth from file...")
+            try:
+                ytmusic = _load_ytmusic_client(auth_file, ytmusic_user or None)
+                print("[worker] YTMusic auth reloaded. If 401 persists, reimport auth JSON in frontend.")
+            except Exception as exc:
+                print(f"[worker] Failed to reload YTMusic auth file: {exc}")
             time.sleep(backend_retry_seconds)
         elif cycle_result == "idle":
             print(f"[worker] Sleeping {idle_seconds}s (queue idle)")

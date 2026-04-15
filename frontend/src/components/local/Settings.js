@@ -6,6 +6,7 @@ import {
   importArtists,
   importYTMusicAuth,
   updateSettings,
+  validateYTMusicAuth,
 } from 'backendApi'
 
 const SPOTIFY_GROUP_OPTIONS = ['album', 'single', 'compilation', 'appears_on']
@@ -59,6 +60,7 @@ function Settings() {
   const [lastAutoFetchDate, setLastAutoFetchDate] = useState('')
   const [importingArtistsJson, setImportingArtistsJson] = useState(false)
   const [importingAuthJson, setImportingAuthJson] = useState(false)
+  const [validatingAuthJson, setValidatingAuthJson] = useState(false)
   const [importingSettingsJson, setImportingSettingsJson] = useState(false)
   const [reverseSpotifyResponseUrl, setReverseSpotifyResponseUrl] = useState('')
   const [completingReverseOAuth, setCompletingReverseOAuth] = useState(false)
@@ -221,8 +223,9 @@ function Settings() {
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error('O ficheiro de auth deve conter um objeto JSON.')
       }
-      await importYTMusicAuth(parsed)
-      setInfoMessage('Auth do YTMusic importada com sucesso.')
+      const response = await importYTMusicAuth(parsed)
+      const updatedFiles = response?.updated_files ? ` (${response.updated_files})` : ''
+      setInfoMessage(`Auth do YTMusic importada com sucesso para os workers.${updatedFiles}`)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -289,6 +292,27 @@ function Settings() {
     } finally {
       setImportingSettingsJson(false)
       event.target.value = ''
+    }
+  }
+
+  const onValidateYTMusicAuth = async () => {
+    setValidatingAuthJson(true)
+    setError('')
+    setInfoMessage('')
+    try {
+      const result = await validateYTMusicAuth()
+      const details = (result.results || [])
+        .map((item) => `${item.ok ? 'OK' : 'ERRO'}: ${item.target} -> ${item.message}`)
+        .join(' | ')
+      if (result.ok) {
+        setInfoMessage(`Auth YTMusic valida para todos os workers. ${details}`)
+      } else {
+        setError(`Falha na validacao da auth YTMusic. ${details}`)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setValidatingAuthJson(false)
     }
   }
 
@@ -669,6 +693,15 @@ function Settings() {
                 <label className="label has-text-light">Importar JSON de auth YTMusic</label>
                 <input type="file" accept=".json,application/json" onChange={onImportYTMusicAuthJson} />
                 {importingAuthJson && <p className="has-text-grey is-size-7 mt-1">A importar auth...</p>}
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    onClick={onValidateYTMusicAuth}
+                    disabled={validatingAuthJson || loading}
+                  >
+                    {validatingAuthJson ? 'A validar auth...' : 'Validar auth YTMusic'}
+                  </Button>
+                </div>
               </div>
               <div className="column is-6-desktop is-12-tablet">
                 <label className="label has-text-light">Importar JSON de settings</label>

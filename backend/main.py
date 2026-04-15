@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from base64 import b64encode
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
@@ -15,6 +16,14 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+try:
+    from ytmusicapi import YTMusic
+    from ytmusicapi.helpers import get_authorization, sapisid_from_cookie
+except Exception:  # pragma: no cover - optional dependency in some environments
+    YTMusic = None
+    get_authorization = None
+    sapisid_from_cookie = None
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -226,6 +235,53 @@ class HistoricoItem(BaseModel):
 
 class ReverseSpotifyOAuthCompletePayload(BaseModel):
     response_url: str = Field(min_length=1)
+
+
+def _ytmusic_auth_targets() -> list[Path]:
+    auth_path = Path(os.getenv("YTMUSIC_AUTH_FILE", "/data/ytmusic_auth.json")).resolve()
+    reverse_auth_path = Path(
+        os.getenv("REVERSE_YTMUSIC_AUTH_FILE", str(auth_path))
+    ).resolve()
+    targets = [auth_path]
+    if reverse_auth_path not in targets:
+        targets.append(reverse_auth_path)
+    return targets
+
+
+def _validate_ytmusic_auth_payload(auth_payload: dict, ytmusic_user: str | None = None) -> None:
+    if YTMusic is None or get_authorization is None or sapisid_from_cookie is None:
+        raise HTTPException(
+            status_code=500,
+            detail="ytmusicapi is not installed on backend. Add it to backend dependencies.",
+        )
+
+    if not isinstance(auth_payload, dict) or not auth_payload:
+        raise ValueError("Auth payload must be a non-empty JSON object.")
+
+    if "cookie" in auth_payload:
+        cookie = str(auth_payload.get("cookie", "")).strip()
+        origin = str(auth_payload.get("origin", "https://music.youtube.com")).strip()
+        if not cookie:
+            raise ValueError("Missing cookie in auth payload.")
+        sapisid = sapisid_from_cookie(cookie)
+        authorization = get_authorization(f"{sapisid} {origin}")
+        headers = {
+            "cookie": cookie,
+            "origin": origin,
+            "user-agent": str(auth_payload.get("user-agent", "")),
+            "x-goog-authuser": str(auth_payload.get("x-goog-authuser", "0")),
+            "x-goog-visitor-id": str(auth_payload.get("x-goog-visitor-id", "")),
+            "authorization": authorization,
+        }
+        client = YTMusic(auth=headers, user=ytmusic_user or None)
+        client.get_liked_songs(limit=1)
+        return
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=True, encoding="utf-8") as handle:
+        handle.write(json.dumps(auth_payload, ensure_ascii=True))
+        handle.flush()
+        client = YTMusic(auth=handle.name, user=ytmusic_user or None)
+        client.get_liked_songs(limit=1)
 
 
 def _ensure_data_file(path: Path) -> None:
@@ -1483,13 +1539,37 @@ def update_error_links(error_id: str, payload: SyncErrorLinksUpdate) -> SyncErro
 
 @app.post("/settings/ytmusic-auth/import")
 def import_ytmusic_auth(payload: YTMusicAuthImportPayload) -> dict[str, str]:
-    auth_path = Path(os.getenv("YTMUSIC_AUTH_FILE", "/data/ytmusic_auth.json")).resolve()
-    auth_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        auth_path.write_text(json.dumps(payload.auth_json, ensure_ascii=True, indent=2) + "\n")
-    except PermissionError as exc:
-        raise HTTPException(status_code=500, detail=f"No write permission to {auth_path}") from exc
-    return {"status": "ok"}
+    targets = _ytmusic_auth_targets()
+
+    for target in targets:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            target.write_text(json.dumps(payload.auth_json, ensure_ascii=True, indent=2) + "\n")
+        except PermissionError as exc:
+            raise HTTPException(status_code=500, detail=f"No write permission to {target}") from exc
+
+    return {"status": "ok", "updated_files": ", ".join(str(item) for item in targets)}
+
+
+@app.post("/settings/ytmusic-auth/validate")
+def validate_ytmusic_auth() -> dict:
+    targets = _ytmusic_auth_targets()
+    ytmusic_user = os.getenv("YTMUSIC_USER", "").strip() or None
+    results: list[dict[str, str | bool]] = []
+    all_ok = True
+
+    for target in targets:
+        try:
+            if not target.exists():
+                raise FileNotFoundError(f"{target} does not exist.")
+            auth_payload = json.loads(target.read_text())
+            _validate_ytmusic_auth_payload(auth_payload, ytmusic_user)
+            results.append({"target": str(target), "ok": True, "message": "Auth validated successfully."})
+        except Exception as exc:
+            all_ok = False
+            results.append({"target": str(target), "ok": False, "message": str(exc)})
+
+    return {"ok": all_ok, "results": results}
 
 
 @app.get("/historico")

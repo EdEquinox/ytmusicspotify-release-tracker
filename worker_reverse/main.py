@@ -26,6 +26,16 @@ def _track_key(artist: str, title: str) -> str:
     return f"{_normalize(artist)}::{_normalize(title)}"
 
 
+def _is_ytmusic_auth_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        "401" in message
+        or "unauthorized" in message
+        or "authentication credential" in message
+        or "login required" in message
+    )
+
+
 def _read_settings(backend_url: str) -> dict[str, Any]:
     response = requests.get(f"{backend_url}/settings", timeout=20)
     response.raise_for_status()
@@ -72,6 +82,39 @@ def _report_error(backend_url: str, artist: str, title: str, reason: str) -> Non
             "reason": reason,
         },
     ).raise_for_status()
+
+
+def _list_errors(backend_url: str) -> list[dict[str, Any]]:
+    response = requests.get(f"{backend_url}/erros", timeout=20)
+    response.raise_for_status()
+    payload = response.json()
+    return payload if isinstance(payload, list) else []
+
+
+def _extract_manual_spotify_links(errors: list[dict[str, Any]]) -> dict[str, str]:
+    manual_links: dict[str, str] = {}
+    for item in errors:
+        artist = str(item.get("artist_name", "")).strip()
+        title = str(item.get("track_name", "")).strip()
+        link = str(item.get("spotify_url_manual", "")).strip()
+        if not artist or not title or not link:
+            continue
+        manual_links[_track_key(artist, title)] = link
+    return manual_links
+
+
+def _extract_spotify_track_id_from_url(url: str) -> str | None:
+    value = url.strip()
+    if not value:
+        return None
+    if "open.spotify.com/track/" in value:
+        tail = value.split("open.spotify.com/track/", 1)[1]
+        track_id = tail.split("?", 1)[0].split("/", 1)[0].strip()
+        return track_id or None
+    if value.startswith("spotify:track:"):
+        track_id = value.split("spotify:track:", 1)[1].strip()
+        return track_id or None
+    return None
 
 
 def _clear_resolved_errors(backend_url: str, artist: str, title: str) -> None:
@@ -213,6 +256,11 @@ def _sync_likes_cycle(
     spotiflac_loop_minutes: int,
 ) -> None:
     historico_ids = _list_historico_ids(backend_url)
+    manual_spotify_links: dict[str, str] = {}
+    try:
+        manual_spotify_links = _extract_manual_spotify_links(_list_errors(backend_url))
+    except Exception as exc:
+        print(f"[reverse] Failed to load manual Spotify links from errors: {exc}")
     payload = ytmusic.get_liked_songs(limit=liked_limit) or {}
     tracks = payload.get("tracks") or []
     print(f"[reverse] Loaded {len(tracks)} liked songs from YTMusic")
@@ -231,9 +279,22 @@ def _sync_likes_cycle(
         query = f"track:{title} artist:{artist}"
         results = spotify.search(q=query, type="track", limit=5)
         spotify_track_id = _pick_spotify_track_id(results, artist, title)
+        spotify_url_override = ""
+
+        if not spotify_track_id:
+            manual_link = manual_spotify_links.get(key, "").strip()
+            if manual_link:
+                spotify_track_id = _extract_spotify_track_id_from_url(manual_link)
+                if spotify_track_id:
+                    spotify_url_override = manual_link
+                    print(f"[reverse] Using manual Spotify link from errors for: {artist} - {title}")
+                else:
+                    print(
+                        f"[reverse] Ignoring invalid manual Spotify link for {artist} - {title}: {manual_link}"
+                    )
 
         if spotify_track_id:
-            spotify_url = f"https://open.spotify.com/track/{spotify_track_id}"
+            spotify_url = spotify_url_override or f"https://open.spotify.com/track/{spotify_track_id}"
             download_ok = True
             if spotiflac_enabled:
                 ok, detail = _download_with_spotiflac(
@@ -536,6 +597,15 @@ def main() -> None:
             )
         except Exception as exc:
             print(f"[reverse] Sync cycle failed: {exc}")
+            if _is_ytmusic_auth_error(exc):
+                print("[reverse] Attempting to reload YTMusic auth from file...")
+                try:
+                    ytmusic = _load_ytmusic_client(ytmusic_auth_file, ytmusic_user or None)
+                    print(
+                        "[reverse] YTMusic auth reloaded. If 401 persists, reimport auth JSON in frontend."
+                    )
+                except Exception as reload_exc:
+                    print(f"[reverse] Failed to reload YTMusic auth file: {reload_exc}")
         time.sleep(poll_seconds)
 
 
