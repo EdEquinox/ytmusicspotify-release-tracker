@@ -343,7 +343,7 @@ def _load_ytmusic_client(auth_file: str, user_id: str | None = None) -> YTMusic:
     if not isinstance(payload, dict):
         raise RuntimeError("Invalid YTMUSIC auth file format")
 
-    # Manual browser-header auth files often use lowercase keys.
+    # Support browser-header JSON auth format (cookie/origin keys).
     if "cookie" in payload:
         cookie = str(payload.get("cookie", ""))
         origin = str(payload.get("origin", "https://music.youtube.com"))
@@ -362,7 +362,21 @@ def _load_ytmusic_client(auth_file: str, user_id: str | None = None) -> YTMusic:
         }
         return YTMusic(auth=headers, user=user_id or None)
 
-    # Fallback for native ytmusicapi auth json format.
+    # Novo: Lê o client_id e client_secret diretamente de dentro do ytmusic_auth.json
+    client_id = payload.get("client_id")
+    client_secret = payload.get("client_secret")
+
+    if client_id and client_secret:
+        return YTMusic(
+            auth=auth_file, 
+            user=user_id or None,
+            oauth_credentials={
+                "client_id": str(client_id).strip(),
+                "client_secret": str(client_secret).strip()
+            }
+        )
+
+    # Fallback caso não encontre as chaves no ficheiro
     return YTMusic(auth=auth_file, user=user_id or None)
 
 
