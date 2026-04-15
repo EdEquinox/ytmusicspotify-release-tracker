@@ -61,12 +61,19 @@ class SyncErrorCreate(BaseModel):
     artist_name: str = Field(min_length=1)
     album_name: str | None = None
     reason: str = Field(min_length=1)
+    spotify_url_manual: str | None = None
+    tidal_url_manual: str | None = None
 
 
 class SyncErrorItem(SyncErrorCreate):
     id: str
     created_at: str
     attempts: int = Field(default=1, ge=1)
+
+
+class SyncErrorLinksUpdate(BaseModel):
+    spotify_url_manual: str | None = None
+    tidal_url_manual: str | None = None
 
 
 class SpotifyArtistItem(BaseModel):
@@ -1420,6 +1427,10 @@ def create_error(error: SyncErrorCreate) -> SyncErrorItem:
         updated_item = dict(item)
         updated_item["reason"] = error.reason
         updated_item["album_name"] = error.album_name
+        if not str(updated_item.get("spotify_url_manual", "")).strip():
+            updated_item["spotify_url_manual"] = error.spotify_url_manual
+        if not str(updated_item.get("tidal_url_manual", "")).strip():
+            updated_item["tidal_url_manual"] = error.tidal_url_manual
         current_attempts = int(updated_item.get("attempts", 1) or 1)
         updated_item["attempts"] = max(current_attempts + 1, 1)
         errors[index] = updated_item
@@ -1447,6 +1458,27 @@ def delete_error(error_id: str) -> dict[str, str]:
 
     _write_json_list(ERRORS_FILE, updated_errors)
     return {"status": "deleted"}
+
+
+@app.put("/erros/{error_id}/links")
+def update_error_links(error_id: str, payload: SyncErrorLinksUpdate) -> SyncErrorItem:
+    errors = _read_json_list(ERRORS_FILE)
+    for index, item in enumerate(errors):
+        if item.get("id") != error_id:
+            continue
+
+        updated_item = dict(item)
+        updated_item["spotify_url_manual"] = (
+            payload.spotify_url_manual.strip() if payload.spotify_url_manual else None
+        )
+        updated_item["tidal_url_manual"] = (
+            payload.tidal_url_manual.strip() if payload.tidal_url_manual else None
+        )
+        errors[index] = updated_item
+        _write_json_list(ERRORS_FILE, errors)
+        return SyncErrorItem(**updated_item)
+
+    raise HTTPException(status_code=404, detail="Error not found")
 
 
 @app.post("/settings/ytmusic-auth/import")

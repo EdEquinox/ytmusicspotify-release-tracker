@@ -68,6 +68,11 @@ export const getAlbumTracks = (albumId) =>
 
 export const listErrors = () => request('/erros')
 export const deleteError = (errorId) => request(`/erros/${errorId}`, { method: 'DELETE' })
+export const updateErrorLinks = (errorId, payload) =>
+  request(`/erros/${encodeURIComponent(errorId)}/links`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
 export const listHistorico = () => request('/historico')
 export const getSettings = () => request('/settings')
 export const updateSettings = (payload) =>

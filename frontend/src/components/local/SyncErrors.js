@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Button, VerticalLayout, Header, Content, ButtonLink } from 'components/common'
-import { deleteError, listErrors } from 'backendApi'
+import { deleteError, listErrors, updateErrorLinks } from 'backendApi'
 
 function SyncErrors() {
   const [errors, setErrors] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [manualLinks, setManualLinks] = useState({})
+  const [savingLinksById, setSavingLinksById] = useState({})
 
   const loadErrors = async () => {
     setLoading(true)
@@ -14,6 +16,14 @@ function SyncErrors() {
     try {
       const data = await listErrors()
       setErrors(data)
+      const nextManualLinks = {}
+      for (const item of data) {
+        nextManualLinks[item.id] = {
+          spotify: item.spotify_url_manual || '',
+          tidal: item.tidal_url_manual || '',
+        }
+      }
+      setManualLinks(nextManualLinks)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -32,6 +42,49 @@ function SyncErrors() {
       await loadErrors()
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  const onChangeManualLink = (errorId, service, value) => {
+    setManualLinks((current) => ({
+      ...current,
+      [errorId]: {
+        spotify: current[errorId]?.spotify || '',
+        tidal: current[errorId]?.tidal || '',
+        [service]: value,
+      },
+    }))
+  }
+
+  const hasSpotifyNotFoundError = (reason) => {
+    const normalized = String(reason || '').toLowerCase()
+    return normalized.includes('nao_no_spotify') || normalized.includes('nao encontrada no spotify')
+  }
+
+  const hasTidalNotFoundError = (reason) => {
+    const normalized = String(reason || '').toLowerCase()
+    return (
+      normalized.includes('tidal') &&
+      (normalized.includes('not found') ||
+        normalized.includes('nao encontrada') ||
+        normalized.includes('could not find'))
+    )
+  }
+
+  const onSaveManualLinks = async (item) => {
+    const payload = {
+      spotify_url_manual: (manualLinks[item.id]?.spotify || '').trim() || null,
+      tidal_url_manual: (manualLinks[item.id]?.tidal || '').trim() || null,
+    }
+    setSavingLinksById((current) => ({ ...current, [item.id]: true }))
+    setError('')
+    try {
+      await updateErrorLinks(item.id, payload)
+      await loadErrors()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingLinksById((current) => ({ ...current, [item.id]: false }))
     }
   }
 
@@ -110,7 +163,52 @@ function SyncErrors() {
                     <p className="LocalReleaseArtist">{item.artist_name || 'Sem artista'}</p>
                     <p className="LocalReleaseReason">{item.album_name ? `Album: ${item.album_name}` : 'Album: -'}</p>
                     <p className="LocalErrorReason">{item.reason}</p>
+                    {(hasSpotifyNotFoundError(item.reason) || hasTidalNotFoundError(item.reason)) && (
+                      <div className="mt-3">
+                        {hasSpotifyNotFoundError(item.reason) && (
+                          <div className="field">
+                            <label className="label has-text-light">Link manual Spotify</label>
+                            <div className="control">
+                              <input
+                                className="input"
+                                type="url"
+                                placeholder="https://open.spotify.com/track/..."
+                                value={manualLinks[item.id]?.spotify || ''}
+                                onChange={(event) =>
+                                  onChangeManualLink(item.id, 'spotify', event.target.value)
+                                }
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {hasTidalNotFoundError(item.reason) && (
+                          <div className="field">
+                            <label className="label has-text-light">Link manual Tidal</label>
+                            <div className="control">
+                              <input
+                                className="input"
+                                type="url"
+                                placeholder="https://listen.tidal.com/..."
+                                value={manualLinks[item.id]?.tidal || ''}
+                                onChange={(event) =>
+                                  onChangeManualLink(item.id, 'tidal', event.target.value)
+                                }
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="LocalErrorActions">
+                      {(hasSpotifyNotFoundError(item.reason) || hasTidalNotFoundError(item.reason)) && (
+                        <Button
+                          className="LocalActionButton"
+                          onClick={() => onSaveManualLinks(item)}
+                          disabled={Boolean(savingLinksById[item.id])}
+                        >
+                          {savingLinksById[item.id] ? 'A guardar...' : 'Guardar links'}
+                        </Button>
+                      )}
                       <Button className="LocalActionButton" onClick={() => onDelete(item.id)}>
                         Apagar
                       </Button>
