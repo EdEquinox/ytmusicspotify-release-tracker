@@ -233,9 +233,22 @@ def _load_ytmusic_client(auth_file: str, user_id: str | None = None) -> YTMusic:
         }
         return YTMusic(auth=headers, user=user_id or None)
 
-    # Fallback for native ytmusicapi OAuth JSON format.
-    return YTMusic(auth=auth_file, user=user_id or None)
+    # Novo: Lê o client_id e client_secret diretamente de dentro do ytmusic_auth.json
+    client_id = payload.get("client_id")
+    client_secret = payload.get("client_secret")
 
+    if client_id and client_secret:
+        return YTMusic(
+            auth=auth_file, 
+            user=user_id or None,
+            oauth_credentials={
+                "client_id": str(client_id).strip(),
+                "client_secret": str(client_secret).strip()
+            }
+        )
+
+    # Fallback caso não encontre as chaves no ficheiro
+    return YTMusic(auth=auth_file, user=user_id or None)
 
 def _sync_likes_cycle(
     backend_url: str,
@@ -276,22 +289,23 @@ def _sync_likes_cycle(
         if key in historico_ids:
             continue
 
-        query = f"track:{title} artist:{artist}"
-        results = spotify.search(q=query, type="track", limit=5)
-        spotify_track_id = _pick_spotify_track_id(results, artist, title)
+        spotify_track_id = None
         spotify_url_override = ""
+        manual_link = manual_spotify_links.get(key, "").strip()
+        if manual_link:
+            spotify_track_id = _extract_spotify_track_id_from_url(manual_link)
+            if spotify_track_id:
+                spotify_url_override = manual_link
+                print(f"[reverse] Using manual Spotify link from errors for: {artist} - {title}")
+            else:
+                print(
+                    f"[reverse] Ignoring invalid manual Spotify link for {artist} - {title}: {manual_link}"
+                )
 
         if not spotify_track_id:
-            manual_link = manual_spotify_links.get(key, "").strip()
-            if manual_link:
-                spotify_track_id = _extract_spotify_track_id_from_url(manual_link)
-                if spotify_track_id:
-                    spotify_url_override = manual_link
-                    print(f"[reverse] Using manual Spotify link from errors for: {artist} - {title}")
-                else:
-                    print(
-                        f"[reverse] Ignoring invalid manual Spotify link for {artist} - {title}: {manual_link}"
-                    )
+            query = f"track:{title} artist:{artist}"
+            results = spotify.search(q=query, type="track", limit=5)
+            spotify_track_id = _pick_spotify_track_id(results, artist, title)
 
         if spotify_track_id:
             spotify_url = spotify_url_override or f"https://open.spotify.com/track/{spotify_track_id}"

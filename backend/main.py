@@ -284,6 +284,22 @@ def _validate_ytmusic_auth_payload(auth_payload: dict, ytmusic_user: str | None 
         client.get_liked_songs(limit=1)
 
 
+def _format_ytmusic_validate_error(exc: Exception) -> str:
+    message = str(exc)
+    lowered = message.lower()
+    if (
+        "sign in" in lowered
+        or "twocolumnbrowseresultsrenderer" in lowered
+        or "looking for what you’ve liked" in lowered
+        or "looking for what you've liked" in lowered
+    ):
+        return (
+            "Auth invalida/expirada para YTMusic (resposta de sign-in). "
+            "Reexporta o JSON de browser auth e importa novamente em Settings."
+        )
+    return message
+
+
 def _ensure_data_file(path: Path) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not path.exists() or not path.read_text().strip():
@@ -1567,7 +1583,9 @@ def validate_ytmusic_auth() -> dict:
             results.append({"target": str(target), "ok": True, "message": "Auth validated successfully."})
         except Exception as exc:
             all_ok = False
-            results.append({"target": str(target), "ok": False, "message": str(exc)})
+            results.append(
+                {"target": str(target), "ok": False, "message": _format_ytmusic_validate_error(exc)}
+            )
 
     return {"ok": all_ok, "results": results}
 
