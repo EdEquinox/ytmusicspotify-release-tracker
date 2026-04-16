@@ -207,34 +207,10 @@ def _build_spotify_client(
     return spotipy.Spotify(auth_manager=auth_manager), auth_manager
 
 
-def _load_ytmusic_client(auth_file: str, user_id: str | None = None) -> YTMusic:
-    with open(auth_file, "r", encoding="utf-8") as handle:
-        payload = json.load(handle)
-
-    if not isinstance(payload, dict):
-        raise RuntimeError("Invalid YTMUSIC auth file format")
-
-    # Support browser-header JSON auth format (cookie/origin keys).
-    if "cookie" in payload:
-        cookie = str(payload.get("cookie", ""))
-        origin = str(payload.get("origin", "https://music.youtube.com"))
-        if not cookie:
-            raise RuntimeError("ytmusic_auth.json missing cookie")
-
-        sapisid = sapisid_from_cookie(cookie)
-        authorization = get_authorization(f"{sapisid} {origin}")
-        headers = {
-            "cookie": cookie,
-            "origin": origin,
-            "user-agent": str(payload.get("user-agent", "")),
-            "x-goog-authuser": str(payload.get("x-goog-authuser", "0")),
-            "x-goog-visitor-id": str(payload.get("x-goog-visitor-id", "")),
-            "authorization": authorization,
-        }
-        return YTMusic(auth=headers, user=user_id or None)
-
-    # Fallback caso não encontre as chaves no ficheiro
-    return YTMusic(auth=auth_file, user=user_id or None)
+def _load_ytmusic_client(auth_file: str) -> YTMusic:
+    print(f"[DEBUG] Inicializando YTMusic com Cookies (Browser Session)...")
+    # Tão simples quanto isto. auth_file agora será o caminho para o browser.json
+    return YTMusic(auth=auth_file)
 
 def _sync_likes_cycle(
     backend_url: str,
@@ -513,7 +489,7 @@ def main() -> None:
         f"LikedLimit={liked_limit} Poll={poll_seconds}s"
     )
 
-    ytmusic = _load_ytmusic_client(ytmusic_auth_file, ytmusic_user or None)
+    ytmusic = _load_ytmusic_client(ytmusic_auth_file)
     spotify, spotify_auth_manager = _build_spotify_client(
         backend_url,
         spotify_cache_path,
@@ -600,7 +576,7 @@ def main() -> None:
             if _is_ytmusic_auth_error(exc):
                 print("[reverse] Attempting to reload YTMusic auth from file...")
                 try:
-                    ytmusic = _load_ytmusic_client(ytmusic_auth_file, ytmusic_user or None)
+                    ytmusic = _load_ytmusic_client(ytmusic_auth_file)
                     print(
                         "[reverse] YTMusic auth reloaded. If 401 persists, reimport auth JSON in frontend."
                     )
