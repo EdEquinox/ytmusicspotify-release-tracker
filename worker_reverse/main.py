@@ -661,7 +661,6 @@ def main() -> None:
                 spotiflac_use_album_subfolders=spotiflac_use_album_subfolders,
                 reverse_track_spacing_ms=reverse_track_spacing_ms,
                 spotiflac_loop_minutes=spotiflac_loop_minutes,
-                correct_album_artists_list=spotify_album_artists_list
             )
         except Exception as exc:
             print(f"[reverse] Sync cycle failed: {exc}")
