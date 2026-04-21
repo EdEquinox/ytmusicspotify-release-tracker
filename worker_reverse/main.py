@@ -7,7 +7,7 @@ import json
 import subprocess
 import shlex
 from typing import Any
-
+import mutagen
 import requests
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -270,6 +270,22 @@ def _sync_likes_cycle(
             spotify_track_id = _pick_spotify_track_id(results, artist, title)
 
         if spotify_track_id:
+            try:
+                sp_track_info = spotify.track(spotify_track_id)
+                # Extrai a lista perfeita de artistas (ex: ["Tyler, The Creator", "A$AP Rocky"])
+                spotify_artists_list = [a["name"] for a in sp_track_info.get("artists", [])]
+                todos_artistas_album = [a["name"] for a in sp_track_info.get("album", {}).get("artists", [])]
+                
+                # Guarda APENAS O PRIMEIRO (o dono do álbum) numa lista de 1 elemento
+                if todos_artistas_album:
+                    spotify_album_artists_list = [todos_artistas_album[0]]
+                else:
+                    # Fallback de segurança: usa o primeiro artista da própria música
+                    spotify_album_artists_list = [spotify_artists_list[0]] if spotify_artists_list else [primary_artist]
+            except Exception as e:
+                print(f"[spotify] Erro ao obter detalhes da faixa (usando fallback): {e}")
+                spotify_artists_list = [artist] # Fallback de segurança
+                spotify_album_artists_list = [artist]
             spotify_url = spotify_url_override or f"https://open.spotify.com/track/{spotify_track_id}"
             download_ok = True
             if spotiflac_enabled:
@@ -285,6 +301,7 @@ def _sync_likes_cycle(
                     use_artist_subfolders=spotiflac_use_artist_subfolders,
                     use_album_subfolders=spotiflac_use_album_subfolders,
                     loop_minutes=spotiflac_loop_minutes,
+                    spotify_artists_list=spotify_artists_list
                 )
                 if not ok:
                     download_ok = False
@@ -315,7 +332,77 @@ def _sync_likes_cycle(
         if reverse_track_spacing_ms > 0:
             time.sleep(reverse_track_spacing_ms / 1000.0)
 
+def _fix_flac_artists_for_navidrome(before_snapshot, after_snapshot, spotify_artists_list: list) -> None:
+    # A CORREÇÃO ESTÁ AQUI: set() extrai as chaves caso seja um dicionário
+    new_files = set(after_snapshot) - set(before_snapshot)
+    
+    if not new_files:
+        print("[tag-fix] ⚠️ Nenhum ficheiro novo detetado. A tag não foi alterada!")
+        return
 
+    try:
+        from mutagen.flac import FLAC
+        for filepath in new_files:
+            if filepath.lower().endswith(".flac"):
+                audio = FLAC(filepath)
+                
+                # 1. Destrói a tag antiga
+                if "artist" in audio:
+                    del audio["artist"]
+                
+                # 2. Garante o formato de lista
+                if isinstance(spotify_artists_list, str):
+                    spotify_artists_list = [spotify_artists_list]
+                    
+                # 3. Guarda a lista limpa do Spotify
+                audio["artist"] = spotify_artists_list
+                audio.save()
+                
+                print(f"[tag-fix] ✅ SUCESSO! Lista gravada no FLAC: {spotify_artists_list}")
+    except ImportError:
+        print("[tag-fix] ⚠️ Biblioteca 'mutagen' não encontrada.")
+    except Exception as e:
+        print(f"[tag-fix] ❌ Erro fatal no Mutagen: {e}")
+
+
+def _fix_flac_artists_for_navidrome(before_snapshot, after_snapshot, spotify_artists_list: list, spotify_album_artists_list: list) -> None:
+    new_files = set(after_snapshot) - set(before_snapshot)
+    
+    if not new_files:
+        return
+
+    try:
+        from mutagen.flac import FLAC
+        for filepath in new_files:
+            if filepath.lower().endswith(".flac"):
+                audio = FLAC(filepath)
+                
+                # --- 1. Corrigir o ARTISTA da Faixa ---
+                if "artist" in audio:
+                    del audio["artist"]
+                if isinstance(spotify_artists_list, str):
+                    spotify_artists_list = [spotify_artists_list]
+                audio["artist"] = spotify_artists_list
+                
+                # --- 2. Corrigir o ARTISTA DO ÁLBUM ---
+                # O FLAC usa 'albumartist', mas às vezes softwares usam 'album artist', limpamos ambos:
+                if "albumartist" in audio:
+                    del audio["albumartist"]
+                if "album artist" in audio:
+                    del audio["album artist"]
+                    
+                if isinstance(spotify_album_artists_list, str):
+                    spotify_album_artists_list = [spotify_album_artists_list]
+                audio["albumartist"] = spotify_album_artists_list
+                
+                audio.save()
+                
+                print(f"[tag-fix] ✅ Injetado: Artista {spotify_artists_list} | AlbumArtist {spotify_album_artists_list}")
+    except ImportError:
+        print("[tag-fix] ⚠️ Biblioteca 'mutagen' não encontrada.")
+    except Exception as e:
+        print(f"[tag-fix] ❌ Erro fatal no Mutagen: {e}")
+        
 def _download_with_spotiflac(
     spotify_url: str,
     artist: str,
@@ -328,6 +415,8 @@ def _download_with_spotiflac(
     use_artist_subfolders: bool,
     use_album_subfolders: bool,
     loop_minutes: int,
+    spotify_artists_list: list[str],
+    correct_album_artists_list: list
 ) -> tuple[bool, str]:
     os.makedirs(output_dir, exist_ok=True)
     before_snapshot = _files_snapshot(output_dir)
@@ -344,6 +433,7 @@ def _download_with_spotiflac(
         )
         after_snapshot = _files_snapshot(output_dir)
         if before_snapshot != after_snapshot:
+            _fix_flac_artists_for_navidrome(before_snapshot, after_snapshot, correct_artists_list, correct_album_artists_list)
             return _enforce_flac_only(before_snapshot, after_snapshot)
     except Exception as exc:
         # Fallback to CLI mode below for compatibility.
@@ -388,6 +478,7 @@ def _download_with_spotiflac(
         stderr = (result.stderr or "").strip()
         detail = stderr or stdout or api_error or "spotiflac finished but no file created/updated in output dir"
         return False, detail
+    _fix_flac_artists_for_navidrome(before_snapshot, after_snapshot, correct_artists_list, correct_album_artists_list)
     return _enforce_flac_only(before_snapshot, after_snapshot)
 
 
@@ -570,6 +661,7 @@ def main() -> None:
                 spotiflac_use_album_subfolders=spotiflac_use_album_subfolders,
                 reverse_track_spacing_ms=reverse_track_spacing_ms,
                 spotiflac_loop_minutes=spotiflac_loop_minutes,
+                correct_album_artists_list=spotify_album_artists_list
             )
         except Exception as exc:
             print(f"[reverse] Sync cycle failed: {exc}")

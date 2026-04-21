@@ -64,6 +64,7 @@ services:
     volumes:
       - ./worker_reverse:/app
       - ./data:/data
+      - ./data/downloads:/music
     depends_on:
       - backend
     restart: unless-stopped
