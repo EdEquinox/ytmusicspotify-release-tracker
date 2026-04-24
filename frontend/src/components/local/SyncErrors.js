@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button, VerticalLayout, Header, Content, ButtonLink } from 'components/common'
-import { deleteError, listErrors, updateErrorLinks } from 'backendApi'
+import { listErrors, resolveError, updateErrorLinks } from 'backendApi'
 
 function SyncErrors() {
   const [errors, setErrors] = useState([])
@@ -9,10 +9,13 @@ function SyncErrors() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [manualLinks, setManualLinks] = useState({})
   const [savingLinksById, setSavingLinksById] = useState({})
+  const [resolvingById, setResolvingById] = useState({})
+  const [infoMessage, setInfoMessage] = useState('')
 
   const loadErrors = async () => {
     setLoading(true)
     setError('')
+    setInfoMessage('')
     try {
       const data = await listErrors()
       setErrors(data)
@@ -35,13 +38,22 @@ function SyncErrors() {
     loadErrors()
   }, [])
 
-  const onDelete = async (errorId) => {
+  const onResolve = async (errorId) => {
     setError('')
+    setInfoMessage('')
+    setResolvingById((current) => ({ ...current, [errorId]: true }))
     try {
-      await deleteError(errorId)
+      const result = await resolveError(errorId)
+      if (result?.csv_removed) {
+        setInfoMessage('Erro removido e entrada retirada da fila CSV.')
+      } else {
+        setInfoMessage('Erro marcado como resolvido.')
+      }
       await loadErrors()
     } catch (err) {
       setError(err.message)
+    } finally {
+      setResolvingById((current) => ({ ...current, [errorId]: false }))
     }
   }
 
@@ -126,6 +138,7 @@ function SyncErrors() {
       <Content>
         <div className="LocalPage">
         {error && <p className="has-text-danger">{error}</p>}
+        {infoMessage && <p className="has-text-info">{infoMessage}</p>}
         {loading && <p className="has-text-grey">A carregar...</p>}
         {!loading && !errors.length && <p className="has-text-grey">Sem erros pendentes.</p>}
 
@@ -163,6 +176,12 @@ function SyncErrors() {
                     <p className="LocalReleaseArtist">{item.artist_name || 'Sem artista'}</p>
                     <p className="LocalReleaseReason">{item.album_name ? `Album: ${item.album_name}` : 'Album: -'}</p>
                     <p className="LocalErrorReason">{item.reason}</p>
+                    {item.clear_csv_on_resolve && (
+                      <p className="LocalReleaseReason is-size-7 has-text-warning">
+                        Ao marcar como resolvido, a entrada correspondente e tambem removida da fila CSV
+                        (erro ao adicionar a playlist).
+                      </p>
+                    )}
                     {(hasSpotifyNotFoundError(item.reason) || hasTidalNotFoundError(item.reason)) && (
                       <div className="mt-3">
                         {hasSpotifyNotFoundError(item.reason) && (
@@ -209,8 +228,12 @@ function SyncErrors() {
                           {savingLinksById[item.id] ? 'A guardar...' : 'Guardar links'}
                         </Button>
                       )}
-                      <Button className="LocalActionButton" onClick={() => onDelete(item.id)}>
-                        Apagar
+                      <Button
+                        className="LocalActionButton is-primary"
+                        onClick={() => onResolve(item.id)}
+                        disabled={Boolean(resolvingById[item.id])}
+                      >
+                        {resolvingById[item.id] ? 'A resolver...' : 'Marcar como resolvido'}
                       </Button>
                     </div>
                   </article>

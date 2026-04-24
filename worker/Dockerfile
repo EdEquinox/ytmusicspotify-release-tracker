@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY . /app
 
-CMD ["python", "sync_ytm.py"]
+CMD ["python", "main.py"]

@@ -7,6 +7,8 @@ import {
   getLocalReleasesFetchJob,
   listCsvReleases,
   listLocalReleases,
+  searchSpotifyTracks,
+  spotiflacDownloadSpotifyTrack,
   startLocalReleasesFetch,
 } from 'backendApi'
 
@@ -33,6 +35,10 @@ function Releases() {
   const [infoMessage, setInfoMessage] = useState('')
   const [fetchDayFilter, setFetchDayFilter] = useState('all')
   const [collapsedFetchDays, setCollapsedFetchDays] = useState({})
+  const [trackSearchQuery, setTrackSearchQuery] = useState('')
+  const [trackSearchResults, setTrackSearchResults] = useState([])
+  const [trackSearchLoading, setTrackSearchLoading] = useState(false)
+  const [downloadingTrackId, setDownloadingTrackId] = useState('')
 
   const loadData = async () => {
     setLoading(true)
@@ -182,6 +188,44 @@ function Releases() {
     }
   }
 
+  const onSearchSpotifyTracks = async () => {
+    const q = trackSearchQuery.trim()
+    if (q.length < 2) {
+      setTrackSearchResults([])
+      return
+    }
+    setTrackSearchLoading(true)
+    setError('')
+    try {
+      const rows = await searchSpotifyTracks(q, 15)
+      setTrackSearchResults(rows)
+    } catch (err) {
+      setError(err.message)
+      setTrackSearchResults([])
+    } finally {
+      setTrackSearchLoading(false)
+    }
+  }
+
+  const onSpotiflacDownload = async (track) => {
+    const url = track.spotify_url || `https://open.spotify.com/track/${track.id}`
+    setDownloadingTrackId(track.id)
+    setError('')
+    setInfoMessage('')
+    try {
+      const res = await spotiflacDownloadSpotifyTrack(url)
+      setInfoMessage(
+        res?.message
+          ? `${res.message} (pasta: ${res.output_dir || '/data/downloads'})`
+          : `Download concluido (pasta: ${res?.output_dir || '/data/downloads'})`
+      )
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDownloadingTrackId('')
+    }
+  }
+
   const onFetchFromSpotify = async () => {
     setError('')
     setInfoMessage('')
@@ -244,6 +288,61 @@ function Releases() {
       </Header>
       <Content>
         <div className="LocalPage">
+          <div className="LocalPanel LocalTrackSearchPanel">
+            <p className="is-size-7 has-text-grey mb-2">
+              Pesquisa no Spotify e descarrega FLAC via SpotiFLAC (servico Tidal). Usa a pasta de downloads das
+              Settings (reverse SpotiFLAC). Pode demorar varios minutos.
+            </p>
+            <div className="LocalTrackSearchRow">
+              <div className="field">
+                <label className="label has-text-light">Musica no Spotify</label>
+                <Input
+                  value={trackSearchQuery}
+                  onChange={(event) => setTrackSearchQuery(event.target.value)}
+                  placeholder="Artista ou nome da musica"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') onSearchSpotifyTracks()
+                  }}
+                />
+              </div>
+              <Button onClick={onSearchSpotifyTracks} primary disabled={trackSearchLoading}>
+                {trackSearchLoading ? 'A procurar...' : 'Procurar'}
+              </Button>
+            </div>
+            {trackSearchResults.length > 0 && (
+              <div className="LocalTrackSearchResults">
+                {trackSearchResults.map((track) => (
+                  <div className="LocalTrackSearchItem" key={track.id}>
+                    <div className="LocalTrackSearchItem__meta">
+                      <div className="LocalTrackSearchItem__title">{track.name}</div>
+                      <div className="LocalTrackSearchItem__artist">{track.artist_name}</div>
+                    </div>
+                    <div className="LocalTrackSearchItem__actions">
+                      <Button
+                        className="LocalActionButton"
+                        onClick={() => onAddTrackToCsv(track)}
+                        disabled={csvReleaseIds.has(track.id) || addingReleaseId === track.id}
+                      >
+                        {csvReleaseIds.has(track.id)
+                          ? 'No CSV'
+                          : addingReleaseId === track.id
+                            ? 'A adicionar...'
+                            : 'Adicionar à playlist'}
+                      </Button>
+                      <Button
+                        className="LocalActionButton"
+                        onClick={() => onSpotiflacDownload(track)}
+                        disabled={Boolean(downloadingTrackId)}
+                      >
+                        {downloadingTrackId === track.id ? 'A descarregar...' : 'Descarregar'}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="LocalPanel LocalPanel--toolbar mb-4">
             <div className="LocalTopRow">
               <div className="field LocalTopRow__date">

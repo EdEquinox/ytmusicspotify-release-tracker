@@ -29,6 +29,13 @@ export const importArtists = (payload) =>
 export const deleteArtist = (artistId) => request(`/artistas/${artistId}`, { method: 'DELETE' })
 export const searchSpotifyArtists = (query) =>
   request(`/spotify/artists/search?q=${encodeURIComponent(query)}`)
+export const searchSpotifyTracks = (query, limit = 15) =>
+  request(`/spotify/tracks/search?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}`)
+export const spotiflacDownloadSpotifyTrack = (spotifyUrl) =>
+  request('/spotify/spotiflac-download', {
+    method: 'POST',
+    body: JSON.stringify({ spotify_url: spotifyUrl }),
+  })
 export const listReleases = (startDate, endDate) =>
   request(
     `/releases?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`
@@ -67,6 +74,8 @@ export const getAlbumTracks = (albumId) =>
   request(`/spotify/albums/${encodeURIComponent(albumId)}/tracks`)
 
 export const listErrors = () => request('/erros')
+export const resolveError = (errorId) =>
+  request(`/erros/${encodeURIComponent(errorId)}/resolve`, { method: 'POST' })
 export const deleteError = (errorId) => request(`/erros/${errorId}`, { method: 'DELETE' })
 export const updateErrorLinks = (errorId, payload) =>
   request(`/erros/${encodeURIComponent(errorId)}/links`, {
