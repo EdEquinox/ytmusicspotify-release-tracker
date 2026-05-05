@@ -11,13 +11,15 @@ services:
       REACT_APP_SPOTIFY_CLIENT_ID: "${REACT_APP_SPOTIFY_CLIENT_ID:-}"
       REACT_APP_SPOTIFY_REDIRECT_URI: "${REACT_APP_SPOTIFY_REDIRECT_URI:-http://127.0.0.1:3001/artists}"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   backend:
     image: ghcr.io/edequinox/ytmusicspotify-release-tracker-backend:latest
     labels:
       - com.centurylinklabs.watchtower.enable=true
+    # No host: porta BACKEND_PORT (ex. 8001). Na rede Docker: serviço backend na 8000.
     ports:
       - "${BACKEND_PORT:-8001}:8000"
     environment:
@@ -25,6 +27,18 @@ services:
       SPOTIFY_CLIENT_SECRET: "${SPOTIFY_CLIENT_SECRET:-}"
     volumes:
       - /opt/ytmusic-release-tracker/data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 90s
     restart: unless-stopped
 
   worker:
@@ -32,13 +46,14 @@ services:
     labels:
       - com.centurylinklabs.watchtower.enable=true
     environment:
-      BACKEND_URL: "http://backend:8000"
+      BACKEND_URL: "${WORKER_BACKEND_URL:-http://backend:8000}"
       YTMUSIC_AUTH_FILE: "${YTMUSIC_AUTH_FILE:-/data/ytmusic_auth.json}"
       YTMUSIC_USER: "${YTMUSIC_USER:-}"
     volumes:
       - /opt/ytmusic-release-tracker/data:/data
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   worker-reverse:
@@ -46,14 +61,16 @@ services:
     labels:
       - com.centurylinklabs.watchtower.enable=true
     environment:
-      REVERSE_BACKEND_URL: "http://backend:8000"
+      REVERSE_BACKEND_URL: "${REVERSE_WORKER_BACKEND_URL:-http://backend:8000}"
       REVERSE_YTMUSIC_AUTH_FILE: "${REVERSE_YTMUSIC_AUTH_FILE:-/data/ytmusic_auth.json}"
       REVERSE_YTMUSIC_USER: "${REVERSE_YTMUSIC_USER:-}"
+      REVERSE_TIDAL_ONLY: "${REVERSE_TIDAL_ONLY:-1}"
       REVERSE_SPOTIFY_CACHE_PATH: "${REVERSE_SPOTIFY_CACHE_PATH:-/data/spotify_oauth_cache_reverse.json}"
     volumes:
       - /opt/ytmusic-release-tracker/data:/data
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 watchtower:

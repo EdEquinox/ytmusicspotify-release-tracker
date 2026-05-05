@@ -5,8 +5,8 @@ import time
 
 from ytmusicapi import YTMusic
 
-from backend_client import _fetch_backend_settings
-from sync_cycle import _sync_cycle
+from services.backend_client import _fetch_backend_settings
+from sync.cycle import _sync_cycle
 
 
 def _load_ytmusic_client(auth_file: str) -> YTMusic:
@@ -44,10 +44,16 @@ def main() -> None:
                 settings.get("worker_album_audio_only_strict", strict_audio_only)
             )
         except Exception as exc:
-            print(f"[worker] Failed to load backend settings, using current playlist id: {exc}")
+            print(
+                f"[worker] Não foi possível obter /settings do API ({backend_url}). "
+                f"Isto vem do container worker, não do log do uvicorn do backend. Erro: {exc}"
+            )
 
         if not playlist_id:
-            print("[worker] Missing playlist id in env/backend settings. Retrying later.")
+            print(
+                "[worker] playlist_id vazio (define na app em Definições / data/settings.json). "
+                "A repetir após retry."
+            )
             time.sleep(backend_retry_seconds)
             continue
 

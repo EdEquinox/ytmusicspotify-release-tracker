@@ -13,6 +13,8 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY . /app
+# Garante que o /app/requirements.txt final (incl. tidalapi) está instalado após o COPY.
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 EXPOSE 8000
 

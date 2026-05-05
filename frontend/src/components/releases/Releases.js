@@ -3,13 +3,17 @@ import { Button, ButtonLink, Content, Header, Input, VerticalLayout } from 'comp
 import {
   addReleaseToCsv,
   addTrackToCsv,
-  getAlbumTracks,
   getLocalReleasesFetchJob,
+  getSettings,
+  getTidalAlbumTracks,
+  getTidalDeviceStatus,
+  getTidalSession,
   listCsvReleases,
   listLocalReleases,
-  searchSpotifyTracks,
-  spotiflacDownloadSpotifyTrack,
+  searchTidalTracks,
+  spotiflacDownloadTidalTrack,
   startLocalReleasesFetch,
+  startTidalDeviceLogin,
 } from 'backendApi'
 
 /**
@@ -25,7 +29,7 @@ function Releases() {
   const [excludeRemixes, setExcludeRemixes] = useState(true)
   const [excludeDuplicates, setExcludeDuplicates] = useState(true)
   const [loading, setLoading] = useState(true)
-  const [fetchingSpotify, setFetchingSpotify] = useState(false)
+  const [fetchingTidal, setFetchingTidal] = useState(false)
   const [fetchProgress, setFetchProgress] = useState(null)
   const [addingReleaseId, setAddingReleaseId] = useState('')
   const [expandedAlbums, setExpandedAlbums] = useState({})
@@ -39,6 +43,10 @@ function Releases() {
   const [trackSearchResults, setTrackSearchResults] = useState([])
   const [trackSearchLoading, setTrackSearchLoading] = useState(false)
   const [downloadingTrackId, setDownloadingTrackId] = useState('')
+  const [tidalLoginOpen, setTidalLoginOpen] = useState(false)
+  const [tidalLoginPayload, setTidalLoginPayload] = useState(null)
+  const [tidalLoginStatus, setTidalLoginStatus] = useState('')
+  const [filtersDropdownOpen, setFiltersDropdownOpen] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -55,12 +63,28 @@ function Releases() {
   }
 
   useEffect(() => {
-    const end = new Date()
-    const start = new Date()
-    start.setDate(end.getDate() - 30)
-    setEndDate(end.toISOString().slice(0, 10))
-    setStartDate(start.toISOString().slice(0, 10))
-    loadData()
+    async function init() {
+      const today = new Date().toISOString().slice(0, 10)
+      let start = ''
+      try {
+        const settings = await getSettings()
+        const saved = String(settings.last_releases_fetch_end_date || '').trim()
+        if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) {
+          start = saved > today ? today : saved
+        }
+      } catch {
+        /* fallback below */
+      }
+      if (!start) {
+        const d = new Date()
+        d.setDate(d.getDate() - 30)
+        start = d.toISOString().slice(0, 10)
+      }
+      setEndDate(today)
+      setStartDate(start)
+      loadData()
+    }
+    init()
   }, [])
 
   const filteredReleases = useMemo(() => {
@@ -93,6 +117,28 @@ function Releases() {
       return true
     })
   }, [excludeDuplicates, excludeRemixes, excludeVariousArtists, query, releases])
+
+  const listFiltersActiveCount = useMemo(() => {
+    let n = 0
+    if (query.trim()) n += 1
+    if (fetchDayFilter !== 'all') n += 1
+    if (!excludeVariousArtists) n += 1
+    if (!excludeRemixes) n += 1
+    if (!excludeDuplicates) n += 1
+    return n
+  }, [query, fetchDayFilter, excludeVariousArtists, excludeRemixes, excludeDuplicates])
+
+  useEffect(() => {
+    if (!filtersDropdownOpen) return
+    const onDocDown = (event) => {
+      const el = event.target
+      if (el instanceof Node && !el.closest?.('.LocalReleasesFilterDropdown')) {
+        setFiltersDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocDown)
+    return () => document.removeEventListener('mousedown', onDocDown)
+  }, [filtersDropdownOpen])
 
   const fetchedDayOptions = useMemo(() => {
     const unique = new Set(
@@ -158,7 +204,14 @@ function Releases() {
 
     setLoadingAlbumId(release.id)
     try {
-      const tracks = await getAlbumTracks(release.id)
+      const useTidalTracks =
+        release.source === 'tidal' ||
+        Boolean(release.tidal_url) ||
+        /^\d+$/.test(String(release.id ?? '').trim())
+      const tracks = useTidalTracks ? await getTidalAlbumTracks(release.id) : []
+      if (!useTidalTracks) {
+        setInfoMessage('Lista de faixas só para álbuns Tidal (ID numérico ou link Tidal).')
+      }
       setAlbumTracks((previous) => ({ ...previous, [release.id]: tracks }))
     } catch (err) {
       setError(err.message)
@@ -178,6 +231,7 @@ function Releases() {
         artist_name: track.artist_name,
         album_type: 'single',
         spotify_url: track.spotify_url || null,
+        tidal_url: track.tidal_url || null,
       })
       setCsvReleaseIds((previous) => new Set([...previous, track.id]))
       setInfoMessage(`"${track.name}" adicionada na playlist.`)
@@ -188,7 +242,7 @@ function Releases() {
     }
   }
 
-  const onSearchSpotifyTracks = async () => {
+  const onSearchTidalTracks = async () => {
     const q = trackSearchQuery.trim()
     if (q.length < 2) {
       setTrackSearchResults([])
@@ -197,7 +251,8 @@ function Releases() {
     setTrackSearchLoading(true)
     setError('')
     try {
-      const rows = await searchSpotifyTracks(q, 15)
+      await ensureTidalLogin()
+      const rows = await searchTidalTracks(q, 15)
       setTrackSearchResults(rows)
     } catch (err) {
       setError(err.message)
@@ -208,12 +263,20 @@ function Releases() {
   }
 
   const onSpotiflacDownload = async (track) => {
-    const url = track.spotify_url || `https://open.spotify.com/track/${track.id}`
+    const tidalUrl = track.tidal_url
+    if (!tidalUrl) {
+      setError('Esta faixa não tem URL Tidal (volta a pesquisar).')
+      return
+    }
     setDownloadingTrackId(track.id)
     setError('')
     setInfoMessage('')
     try {
-      const res = await spotiflacDownloadSpotifyTrack(url)
+      const res = await spotiflacDownloadTidalTrack({
+        tidal_url: tidalUrl,
+        artist_name: track.artist_name,
+        track_name: track.name,
+      })
       setInfoMessage(
         res?.message
           ? `${res.message} (pasta: ${res.output_dir || '/data/downloads'})`
@@ -226,12 +289,87 @@ function Releases() {
     }
   }
 
-  const onFetchFromSpotify = async () => {
+  const ensureTidalLogin = async () => {
+    const session = await getTidalSession()
+    if (session?.logged_in === true) return true
+
+    setTidalLoginOpen(true)
+    setTidalLoginPayload(null)
+    setTidalLoginStatus('A iniciar login Tidal…')
+    // Deixa o React pintar o modal antes do await longo
+    await new Promise((r) => setTimeout(r, 50))
+
+    const start = await startTidalDeviceLogin()
+    if (start.status === 'already_logged_in') {
+      setTidalLoginOpen(false)
+      return true
+    }
+    if (start.status === 'failed') {
+      const msg = start.error || 'Falha ao iniciar device login'
+      setTidalLoginStatus(msg)
+      throw new Error(msg)
+    }
+    if (start.status === 'busy') {
+      setTidalLoginStatus(start.message || 'Login já em curso; a aguardar…')
+    }
+    if (start.verification_uri_complete) {
+      setTidalLoginPayload({
+        link: start.verification_uri_complete,
+        userCode: start.user_code,
+        expiresIn: start.expires_in,
+      })
+      setTidalLoginStatus('Abre o link, faz login no Tidal e autoriza. Esta página aguarda.')
+    }
+
+    const deadline = Date.now() + 20 * 60 * 1000
+    let idleStreak = 0
+
+    for (;;) {
+      if (Date.now() > deadline) {
+        throw new Error('Tempo limite do login Tidal (20 min). Tenta de novo.')
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((r) => setTimeout(r, 1500))
+      // eslint-disable-next-line no-await-in-loop
+      const st = await getTidalDeviceStatus()
+      if (st.verification_uri_complete) {
+        setTidalLoginPayload((prev) => ({
+          link: st.verification_uri_complete,
+          userCode: st.user_code ?? prev?.userCode,
+          expiresIn: st.expires_in ?? prev?.expiresIn,
+        }))
+      }
+      if (st.status === 'logged_in') {
+        setTidalLoginOpen(false)
+        setTidalLoginPayload(null)
+        setTidalLoginStatus('')
+        return true
+      }
+      if (st.status === 'failed') {
+        const msg = st.error || 'Login Tidal falhou ou expirou'
+        setTidalLoginStatus(msg)
+        throw new Error(msg)
+      }
+      if (st.status === 'idle') {
+        idleStreak += 1
+        if (idleStreak >= 6) {
+          throw new Error(
+            'O servidor perdeu o estado do login Tidal (idle). Usa um único processo uvicorn (sem --workers > 1) ou recarrega a página.'
+          )
+        }
+        continue
+      }
+      idleStreak = 0
+    }
+  }
+
+  const onFetchTidalReleases = async () => {
     setError('')
     setInfoMessage('')
-    setFetchingSpotify(true)
+    setFetchingTidal(true)
     setFetchProgress(null)
     try {
+      await ensureTidalLogin()
       const { job_id: jobId } = await startLocalReleasesFetch({
         period: 'custom',
         startDate,
@@ -247,9 +385,26 @@ function Releases() {
           completed = true
           // eslint-disable-next-line no-await-in-loop
           await loadData()
-          setInfoMessage(
-            `Fetch concluido: ${job.fetched_releases} releases encontradas, ${job.stored_releases} guardadas.`
-          )
+          try {
+            const settings = await getSettings()
+            const next = String(settings.last_releases_fetch_end_date || '').trim()
+            if (next && /^\d{4}-\d{2}-\d{2}$/.test(next)) {
+              const today = new Date().toISOString().slice(0, 10)
+              setStartDate(next > today ? today : next)
+              setEndDate(today)
+            }
+          } catch {
+            /* ignore */
+          }
+          if ((job.total_artists ?? 0) === 0) {
+            setInfoMessage(
+              'Fetch concluido: nenhum artista com ID Tidal definido. Em Gerir Artistas, preenche e guarda o campo «ID Tidal» para cada artista que queres sincronizar.'
+            )
+          } else {
+            setInfoMessage(
+              `Fetch concluido: ${job.fetched_releases} releases encontradas, ${job.stored_releases} guardadas.`
+            )
+          }
           break
         }
         if (job.status === 'failed') {
@@ -260,8 +415,9 @@ function Releases() {
       }
     } catch (err) {
       setError(err.message)
+      setTidalLoginOpen(false)
     } finally {
-      setFetchingSpotify(false)
+      setFetchingTidal(false)
     }
   }
 
@@ -287,30 +443,122 @@ function Releases() {
         </div>
       </Header>
       <Content>
-        <div className="LocalPage">
-          <div className="LocalPanel LocalTrackSearchPanel">
+        <div className="LocalPage LocalPage--full">
+          <div className="LocalPanel LocalPanel--toolbar LocalReleasesToolbar mb-4">
             <p className="is-size-7 has-text-grey mb-2">
-              Pesquisa no Spotify e descarrega FLAC via SpotiFLAC (servico Tidal). Usa a pasta de downloads das
-              Settings (reverse SpotiFLAC). Pode demorar varios minutos.
+              Intervalo do fetch (início = último «Fim» guardado após fetch concluído), pesquisa Tidal e botões Puxar /
+              Atualizar. Lista: usa <strong>Filtros</strong> para artista/release, exclusões e dia do fetch. SpotiFLAC
+              nas Settings.
             </p>
-            <div className="LocalTrackSearchRow">
-              <div className="field">
-                <label className="label has-text-light">Musica no Spotify</label>
-                <Input
-                  value={trackSearchQuery}
-                  onChange={(event) => setTrackSearchQuery(event.target.value)}
-                  placeholder="Artista ou nome da musica"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') onSearchSpotifyTracks()
-                  }}
-                />
+            <div className="LocalTopRow LocalReleasesToolbar__row">
+              <div className="LocalTopRow LocalReleasesToolbar__main">
+                <div className="field LocalTopRow__date">
+                  <label className="label has-text-light">Início</label>
+                  <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+                </div>
+                <div className="field LocalTopRow__date">
+                  <label className="label has-text-light">Fim</label>
+                  <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+                </div>
+                <div className="field LocalReleasesToolbar__tidal">
+                  <label className="label has-text-light">Tidal — faixa</label>
+                  <Input
+                    value={trackSearchQuery}
+                    onChange={(event) => setTrackSearchQuery(event.target.value)}
+                    placeholder="Artista ou faixa"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') onSearchTidalTracks()
+                    }}
+                  />
+                </div>
+                <Button onClick={onSearchTidalTracks} primary disabled={trackSearchLoading}>
+                  {trackSearchLoading ? '…' : 'Procurar'}
+                </Button>
               </div>
-              <Button onClick={onSearchSpotifyTracks} primary disabled={trackSearchLoading}>
-                {trackSearchLoading ? 'A procurar...' : 'Procurar'}
-              </Button>
+              <div className="LocalReleasesToolbar__tail">
+                <div className="LocalTopRow__actions">
+                  <Button onClick={onFetchTidalReleases} primary disabled={fetchingTidal || !startDate || !endDate}>
+                    {fetchingTidal ? 'A puxar...' : 'Puxar releases'}
+                  </Button>
+                  <Button onClick={loadData} primary disabled={loading}>
+                    {loading ? 'A atualizar...' : 'Atualizar'}
+                  </Button>
+                </div>
+                <div
+                  className={`dropdown LocalReleasesFilterDropdown ${filtersDropdownOpen ? 'is-active' : ''}`}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') setFiltersDropdownOpen(false)
+                  }}
+                >
+                  <div className="dropdown-trigger">
+                    <Button
+                      type="button"
+                      className="LocalReleasesFilterDropdown__trigger"
+                      aria-haspopup="true"
+                      aria-expanded={filtersDropdownOpen}
+                      onClick={() => setFiltersDropdownOpen((open) => !open)}
+                    >
+                      Filtros da lista
+                      {listFiltersActiveCount > 0 ? (
+                        <span className="LocalReleasesFilterDropdown__badge">{listFiltersActiveCount}</span>
+                      ) : null}
+                    </Button>
+                  </div>
+                  <div className="dropdown-menu is-right LocalReleasesFilterDropdown__menu" role="menu">
+                    <div className="dropdown-content">
+                      <div className="field mb-3">
+                        <label className="label has-text-light is-size-7">Artista ou release</label>
+                        <Input
+                          value={query}
+                          onChange={(event) => setQuery(event.target.value)}
+                          placeholder="Filtrar na lista guardada"
+                        />
+                      </div>
+                      <div className="field mb-3">
+                        <label className="label has-text-light is-size-7">Dia do fetch</label>
+                        <div className="select is-fullwidth LocalReleasesFilterDropdown__select">
+                          <select value={fetchDayFilter} onChange={(event) => setFetchDayFilter(event.target.value)}>
+                            <option value="all">Todos os dias</option>
+                            {fetchedDayOptions.map((day) => (
+                              <option key={day} value={day}>
+                                {day === 'sem-fetch-day' ? 'Sem dia de fetch' : day}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <p className="is-size-7 has-text-grey mb-2">Excluir da lista</p>
+                      <label className="checkbox has-text-light is-block mb-2">
+                        <input
+                          type="checkbox"
+                          checked={excludeVariousArtists}
+                          onChange={(event) => setExcludeVariousArtists(event.target.checked)}
+                        />{' '}
+                        Various Artists
+                      </label>
+                      <label className="checkbox has-text-light is-block mb-2">
+                        <input
+                          type="checkbox"
+                          checked={excludeRemixes}
+                          onChange={(event) => setExcludeRemixes(event.target.checked)}
+                        />{' '}
+                        Remixes
+                      </label>
+                      <label className="checkbox has-text-light is-block">
+                        <input
+                          type="checkbox"
+                          checked={excludeDuplicates}
+                          onChange={(event) => setExcludeDuplicates(event.target.checked)}
+                        />{' '}
+                        Duplicados (mesmo título/artista/data)
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             {trackSearchResults.length > 0 && (
-              <div className="LocalTrackSearchResults">
+              <div className="LocalTrackSearchResults LocalReleasesToolbar__results">
                 {trackSearchResults.map((track) => (
                   <div className="LocalTrackSearchItem" key={track.id}>
                     <div className="LocalTrackSearchItem__meta">
@@ -342,77 +590,39 @@ function Releases() {
               </div>
             )}
           </div>
-
-          <div className="LocalPanel LocalPanel--toolbar mb-4">
-            <div className="LocalTopRow">
-              <div className="field LocalTopRow__date">
-                <label className="label has-text-light">Inicio</label>
-                <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
-              </div>
-              <div className="field LocalTopRow__date">
-                <label className="label has-text-light">Fim</label>
-                <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-              </div>
-              <div className="field LocalTopRow__search">
-                <label className="label has-text-light">Pesquisar</label>
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Nome da release ou artista"
-                />
-              </div>
-              <div className="LocalTopRow__actions">
-                <Button onClick={onFetchFromSpotify} primary disabled={fetchingSpotify || !startDate || !endDate}>
-                  {fetchingSpotify ? 'A puxar...' : 'Puxar releases'}
-                </Button>
-                <Button onClick={loadData} primary disabled={loading}>
-                  {loading ? 'A atualizar...' : 'Atualizar'}
-                </Button>
-              </div>
-            </div>
-        <div className="mb-4 LocalFiltersRow">
-          <label className="checkbox LocalFilterOption">
-            <input
-              type="checkbox"
-              checked={excludeVariousArtists}
-              onChange={(event) => setExcludeVariousArtists(event.target.checked)}
-            />{' '}
-            Excluir Various Artists
-          </label>
-          <label className="checkbox LocalFilterOption">
-            <input
-              type="checkbox"
-              checked={excludeRemixes}
-              onChange={(event) => setExcludeRemixes(event.target.checked)}
-            />{' '}
-            Excluir remixes
-          </label>
-          <label className="checkbox LocalFilterOption">
-            <input
-              type="checkbox"
-              checked={excludeDuplicates}
-              onChange={(event) => setExcludeDuplicates(event.target.checked)}
-            />{' '}
-            Excluir duplicados
-          </label>
-          <div className="LocalFetchDayFilter">
-            <span className="LocalFetchDayFilter__label">Dia do fetch</span>
-            <div className="select is-small LocalFetchDayFilter__select">
-              <select value={fetchDayFilter} onChange={(event) => setFetchDayFilter(event.target.value)}>
-                <option value="all">Todos</option>
-                {fetchedDayOptions.map((day) => (
-                  <option key={day} value={day}>
-                    {day === 'sem-fetch-day' ? 'Sem dia de fetch' : day}
-                  </option>
-                ))}
-              </select>
+        {tidalLoginOpen && (
+          <div className="modal is-active" style={{ zIndex: 10050 }}>
+            <div className="modal-background" />
+            <div className="modal-card has-background-dark" style={{ zIndex: 10051 }}>
+              <header className="modal-card-head has-background-dark">
+                <p className="modal-card-title has-text-light">Login Tidal</p>
+              </header>
+              <section className="modal-card-body has-text-light">
+                <p className="mb-3">{tidalLoginStatus}</p>
+                {tidalLoginPayload?.link && (
+                  <>
+                    <p className="is-size-7 has-text-grey mb-2">Código: {tidalLoginPayload.userCode}</p>
+                    <a
+                      href={tidalLoginPayload.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="button is-link is-fullwidth mb-2"
+                    >
+                      Abrir página de login Tidal
+                    </a>
+                    <p className="is-size-7 has-text-grey">
+                      O servidor aguarda até concluíres o login (como no script de teste). Não fechas esta janela
+                      até aparecer &quot;Fetch&quot; ou erro.
+                    </p>
+                  </>
+                )}
+              </section>
             </div>
           </div>
-        </div>
-        </div>
+        )}
         {error && <p className="has-text-danger">{error}</p>}
         {infoMessage && <p className="has-text-success">{infoMessage}</p>}
-        {fetchingSpotify && fetchProgress && (
+        {fetchingTidal && fetchProgress && (
           <p className="has-text-info">
             Fetch em progresso: {fetchProgress.progress}% ({fetchProgress.processed_artists}/
             {fetchProgress.total_artists} artistas), {fetchProgress.fetched_releases} releases encontradas.
@@ -468,12 +678,12 @@ function Releases() {
                     </div>
                     <div className="mt-3 LocalReleaseActionsRow">
                       <div className="LocalReleaseActionsLeft">
-                        {release.spotify_url && (
-                          <a href={release.spotify_url} target="_blank" rel="noreferrer" className="LocalSpotifyLinkButton">
-                            Abrir no Spotify
+                        {release.tidal_url && (
+                          <a href={release.tidal_url} target="_blank" rel="noreferrer" className="LocalStreamLinkButton">
+                            Abrir no Tidal
                           </a>
                         )}
-                        {(release.album_type === 'album' || release.album_type === 'compilation') && (
+                        {(['album', 'compilation', 'single'].includes(release.album_type)) && (
                           <Button
                             onClick={() => onToggleAlbum(release)}
                             disabled={loadingAlbumId === release.id}

@@ -176,17 +176,17 @@ function SyncErrors() {
                     <p className="LocalReleaseArtist">{item.artist_name || 'Sem artista'}</p>
                     <p className="LocalReleaseReason">{item.album_name ? `Album: ${item.album_name}` : 'Album: -'}</p>
                     <p className="LocalErrorReason">{item.reason}</p>
-                    {item.clear_csv_on_resolve && (
+                    {Boolean(item.release_id) && (
                       <p className="LocalReleaseReason is-size-7 has-text-warning">
-                        Ao marcar como resolvido, a entrada correspondente e tambem removida da fila CSV
-                        (erro ao adicionar a playlist).
+                        Ao marcar como resolvido, a entrada correspondente e tambem removida de{' '}
+                        <code>csv_releases.json</code> (deixa de ser processada pelo worker).
                       </p>
                     )}
                     {(hasSpotifyNotFoundError(item.reason) || hasTidalNotFoundError(item.reason)) && (
                       <div className="mt-3">
                         {hasSpotifyNotFoundError(item.reason) && (
                           <div className="field">
-                            <label className="label has-text-light">Link manual Spotify</label>
+                            <label className="label has-text-light">URL Open Spotify (fallback)</label>
                             <div className="control">
                               <input
                                 className="input"

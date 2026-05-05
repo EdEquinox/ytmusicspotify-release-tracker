@@ -1,111 +1,72 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Input, VerticalLayout, Header, Content, ButtonLink } from 'components/common'
 import {
   createArtist,
   deleteArtist,
-  getSettings,
+  getTidalSession,
   listArtists,
+  patchArtistTidalId,
   refreshArtists,
-  searchSpotifyArtists,
+  searchTidalArtists,
 } from 'backendApi'
 
-const FALLBACK_SPOTIFY_CLIENT_ID = process.env.REACT_APP_SPOTIFY_CLIENT_ID || ''
-const FALLBACK_SPOTIFY_REDIRECT_URI =
-  process.env.REACT_APP_SPOTIFY_REDIRECT_URI || `${window.location.origin}/artists`
-const SPOTIFY_IMPORT_STATE = 'spotify-artists-import'
-const SPOTIFY_CODE_VERIFIER_KEY = 'spotifyImportCodeVerifier'
+/**
+ * @typedef {object} StoredArtist
+ * @property {string|number} id
+ * @property {string} name
+ * @property {string} [image_url]
+ * @property {string} [spotify_id]
+ * @property {string|number} [tidal_id]
+ */
 
-function generateCodeVerifier(length = 64) {
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~'
-  const random = window.crypto.getRandomValues(new Uint8Array(length))
-  return Array.from(random)
-    .map((value) => charset[value % charset.length])
-    .join('')
-}
+/**
+ * @typedef {object} TidalSearchArtist
+ * @property {string|number} id
+ * @property {string} name
+ * @property {string} [image_url]
+ */
 
-async function createCodeChallenge(codeVerifier) {
-  const data = new TextEncoder().encode(codeVerifier)
-  const digest = await window.crypto.subtle.digest('SHA-256', data)
-  const bytes = new Uint8Array(digest)
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-async function exchangeCodeForToken(code, clientId, redirectUri, codeVerifier) {
-  const body = new URLSearchParams({
-    grant_type: 'authorization_code',
-    client_id: clientId,
-    code,
-    redirect_uri: redirectUri,
-    code_verifier: codeVerifier,
-  }).toString()
-
-  const response = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body,
-  })
-
-  if (!response.ok) {
-    throw new Error('Falha ao trocar codigo por token no Spotify.')
-  }
-
-  const json = await response.json()
-  if (!json.access_token) throw new Error('Resposta invalida do Spotify (sem access token).')
-  return json.access_token
-}
-
-async function getFollowedArtists(accessToken) {
-  const artists = []
-  let nextUrl = 'https://api.spotify.com/v1/me/following?type=artist&limit=50'
-
-  while (nextUrl) {
-    const response = await fetch(nextUrl, {
-      headers: { authorization: `Bearer ${accessToken}` },
-    })
-
-    if (!response.ok) throw new Error('Falha ao obter artistas seguidos da conta Spotify.')
-    const payload = await response.json()
-    const page = payload.artists
-    for (const item of page.items) {
-      artists.push({
-        id: item.id,
-        name: item.name,
-        image_url: ((item.images || [])[0] || {}).url || null,
-      })
-    }
-    nextUrl = page.next
-  }
-
-  return artists
+/** @param {unknown} err */
+function formatErrorMessage(err) {
+  return err instanceof Error ? err.message : String(err)
 }
 
 function ManageArtists() {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const [artists, setArtists] = useState([])
+  const [artists, setArtists] = useState(/** @type {StoredArtist[]} */ ([]))
   const [query, setQuery] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState([])
+  const [searchResults, setSearchResults] = useState(/** @type {TidalSearchArtist[]} */ ([]))
   const [searchLoading, setSearchLoading] = useState(false)
   const [refreshingArtists, setRefreshingArtists] = useState(false)
-  const [importing, setImporting] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [spotifyClientId, setSpotifyClientId] = useState(FALLBACK_SPOTIFY_CLIENT_ID)
-  const [spotifyRedirectUri, setSpotifyRedirectUri] = useState(FALLBACK_SPOTIFY_REDIRECT_URI)
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
+  const [tidalDrafts, setTidalDrafts] = useState(/** @type {Record<string, string>} */ ({}))
+  const [savingTidalId, setSavingTidalId] = useState('')
 
   const loadArtists = async () => {
     setLoading(true)
     setError('')
     try {
-      const data = await listArtists()
+      const data = /** @type {StoredArtist[]} */ (await listArtists())
       setArtists(data)
+      /** @type {Record<string, string>} */
+      const nextDrafts = {}
+      for (const a of data) {
+        const sid = a.spotify_id != null ? String(a.spotify_id).trim() : ''
+        const idStr = String(a.id ?? '')
+        const legacyTidalInId = sid && /^\d+$/.test(idStr)
+        const tidal =
+          a.tidal_id != null && a.tidal_id !== undefined && String(a.tidal_id).trim()
+            ? String(a.tidal_id).trim()
+            : legacyTidalInId
+              ? idStr
+              : ''
+        nextDrafts[String(a.id)] = tidal
+      }
+      setTidalDrafts(nextDrafts)
     } catch (err) {
-      setError(err.message)
+      setError(formatErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -115,82 +76,18 @@ function ManageArtists() {
     loadArtists()
   }, [])
 
-  useEffect(() => {
-    async function loadOAuthSettings() {
-      try {
-        const settings = await getSettings()
-        if (settings.spotify_oauth_client_id) setSpotifyClientId(settings.spotify_oauth_client_id)
-        if (settings.spotify_oauth_redirect_uri) setSpotifyRedirectUri(settings.spotify_oauth_redirect_uri)
-      } catch {
-        // Keep env fallback when settings are unavailable.
-      }
-    }
-    loadOAuthSettings()
-  }, [])
-
-  useEffect(() => {
-    const runImportCallback = async () => {
-      const params = new URLSearchParams(location.search)
-      const code = params.get('code')
-      const state = params.get('state')
-      if (!code || state !== SPOTIFY_IMPORT_STATE) return
-
-      const codeVerifier = sessionStorage.getItem(SPOTIFY_CODE_VERIFIER_KEY)
-      if (!codeVerifier) {
-        setError('Codigo verificador em falta. Tenta importar novamente.')
-        navigate('/artists', { replace: true })
-        return
-      }
-
-      setImporting(true)
-      setError('')
-      setInfoMessage('')
-
-      try {
-        const accessToken = await exchangeCodeForToken(
-          code,
-          spotifyClientId,
-          spotifyRedirectUri,
-          codeVerifier
-        )
-        const followedArtists = await getFollowedArtists(accessToken)
-
-        let added = 0
-        let skipped = 0
-        for (const artist of followedArtists) {
-          try {
-            await createArtist(artist)
-            added += 1
-          } catch (err) {
-            if (String(err.message).toLowerCase().includes('already exists')) skipped += 1
-            else throw err
-          }
-        }
-
-        await loadArtists()
-        setInfoMessage(`Importacao concluida: ${added} adicionados, ${skipped} ja existentes.`)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        sessionStorage.removeItem(SPOTIFY_CODE_VERIFIER_KEY)
-        setImporting(false)
-        navigate('/artists', { replace: true })
-      }
-    }
-
-    runImportCallback()
-  }, [location.search, spotifyClientId, spotifyRedirectUri])
-
+  /** @param {string|number} artistId */
   const onDelete = async (artistId) => {
     setError('')
     try {
       await deleteArtist(artistId)
       await loadArtists()
     } catch (err) {
-      setError(err.message)
+      setError(formatErrorMessage(err))
     }
   }
 
+  /** @param {import('react').MouseEvent | import('react').FormEvent | undefined} event */
   const onSearch = async (event) => {
     if (event?.preventDefault) event.preventDefault()
     if (searchQuery.trim().length < 2) {
@@ -202,54 +99,50 @@ function ManageArtists() {
     setSearchLoading(true)
     setError('')
     try {
-      const data = await searchSpotifyArtists(searchQuery.trim())
+      const session = await getTidalSession()
+      if (!session?.logged_in) {
+        setError('Inicia sessão Tidal na página Releases (login no popup) antes de pesquisar artistas.')
+        setSearchResults([])
+        return
+      }
+      const data = /** @type {TidalSearchArtist[]} */ (await searchTidalArtists(searchQuery.trim()))
       setSearchResults(data)
     } catch (err) {
-      setError(err.message)
+      setError(formatErrorMessage(err))
     } finally {
       setSearchLoading(false)
     }
   }
 
+  /** @param {TidalSearchArtist} artist */
   const onAddFromSearch = async (artist) => {
     setError('')
     try {
-      await createArtist({ id: artist.id, name: artist.name, image_url: artist.image_url || null })
+      await createArtist({
+        id: artist.id,
+        name: artist.name,
+        image_url: artist.image_url || null,
+        spotify_id: '',
+      })
       await loadArtists()
     } catch (err) {
-      setError(err.message)
+      setError(formatErrorMessage(err))
     }
   }
 
-  const onImportFollowedArtists = async () => {
-    if (!spotifyClientId) {
-      setError('Define Spotify OAuth Client ID em Settings para usar a importacao.')
-      return
-    }
-
+  /** @param {string|number} artistId */
+  const onSaveTidalId = async (artistId) => {
+    setError('')
+    setInfoMessage('')
+    setSavingTidalId(String(artistId))
     try {
-      setError('')
-      setInfoMessage('')
-      setImporting(true)
-
-      const codeVerifier = generateCodeVerifier()
-      const codeChallenge = await createCodeChallenge(codeVerifier)
-      sessionStorage.setItem(SPOTIFY_CODE_VERIFIER_KEY, codeVerifier)
-
-      const authParams = new URLSearchParams({
-        response_type: 'code',
-        client_id: spotifyClientId,
-        scope: 'user-follow-read',
-        redirect_uri: spotifyRedirectUri,
-        code_challenge_method: 'S256',
-        code_challenge: codeChallenge,
-        state: SPOTIFY_IMPORT_STATE,
-      })
-
-      window.location.assign(`https://accounts.spotify.com/authorize?${authParams.toString()}`)
+      await patchArtistTidalId(artistId, tidalDrafts[String(artistId)])
+      setInfoMessage('ID Tidal guardado.')
+      await loadArtists()
     } catch (err) {
-      setImporting(false)
-      setError(err.message)
+      setError(formatErrorMessage(err))
+    } finally {
+      setSavingTidalId('')
     }
   }
 
@@ -260,21 +153,37 @@ function ManageArtists() {
     try {
       const result = await refreshArtists(true)
       await loadArtists()
-      setInfoMessage(`Atualizacao concluida: ${result.updated}/${result.total} artistas atualizados.`)
+      const extra = result.message ? ` ${result.message}` : ''
+      setInfoMessage(`Atualizacao concluida: ${result.updated}/${result.total} artistas atualizados.${extra}`)
     } catch (err) {
-      setError(err.message)
+      setError(formatErrorMessage(err))
     } finally {
       setRefreshingArtists(false)
+    }
+  }
+
+  /** @type {import('react').ChangeEventHandler<HTMLInputElement>} */
+  const onSearchQueryChange = (event) => setSearchQuery(event.target.value)
+
+  /** @type {import('react').ChangeEventHandler<HTMLInputElement>} */
+  const onFilterQueryChange = (event) => setQuery(event.target.value)
+
+  /** @param {string|number} artistId */
+  const onTidalDraftInputChange = (artistId) => {
+    /** @type {import('react').ChangeEventHandler<HTMLInputElement>} */
+    return (event) => {
+      setTidalDrafts((previous) => ({ ...previous, [String(artistId)]: event.target.value }))
     }
   }
 
   const filteredArtists = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase()
     if (!lowerQuery) return artists
-    return artists.filter(
-      (artist) =>
-        artist.name.toLowerCase().includes(lowerQuery) || artist.id.toLowerCase().includes(lowerQuery)
-    )
+    return artists.filter((artist) => {
+      const name = String(artist.name ?? '').toLowerCase()
+      const id = String(artist.id ?? '').toLowerCase()
+      return name.includes(lowerQuery) || id.includes(lowerQuery)
+    })
   }, [artists, query])
 
   return (
@@ -303,19 +212,12 @@ function ManageArtists() {
         <div className="LocalPanel LocalPanel--toolbar mb-5">
           <div className="LocalTopRow">
             <div className="LocalTopRow__actions">
-              <Button onClick={onImportFollowedArtists} primary disabled={importing}>
-                {importing ? 'A importar...' : 'Importar artistas'}
-              </Button>
               <Button onClick={onRefreshArtistsInfo} primary disabled={refreshingArtists || loading}>
                 {refreshingArtists ? 'A atualizar...' : 'Atualizar info artistas'}
               </Button>
             </div>
             <div className="LocalTopRow__search">
-              <Input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Ex: Radiohead"
-              />
+              <Input value={searchQuery} onChange={onSearchQueryChange} placeholder="Nome no Tidal" />
             </div>
             <div className="LocalTopRow__actions">
               <Button onClick={onSearch} primary disabled={searchLoading || searchQuery.trim().length < 2}>
@@ -330,8 +232,12 @@ function ManageArtists() {
             {searchResults.map((artist) => (
               <article className="LocalArtistCardCompact" key={artist.id}>
                 <div className="LocalArtistRow__media">
-                  {artist.image_url ? (
-                    <img className="LocalArtistRow__avatar" src={artist.image_url} alt={artist.name} />
+                  {artist.image_url || artist.image_url ? (
+                    <img
+                      className="LocalArtistRow__avatar"
+                      src={artist.image_url || artist.image_url}
+                      alt={artist.name}
+                    />
                   ) : (
                     <div className="LocalArtistRow__avatar LocalArtistRow__avatar--placeholder" />
                   )}
@@ -354,8 +260,12 @@ function ManageArtists() {
         <div className="LocalPanel">
         <div className="field">
           <label className="label has-text-light">Filtrar artistas</label>
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar por nome ou id" />
+          <Input value={query} onChange={onFilterQueryChange} placeholder="Pesquisar por nome ou id" />
         </div>
+        <p className="is-size-7 has-text-grey mb-3">
+          Para puxar releases do Tidal, define o <strong>ID Tidal</strong> do artista (número na URL do perfil).
+          Em listas antigas o número Tidal pode estar em «id» com «spotify_id»; o fetch de releases usa os dois.
+        </p>
         </div>
 
         {error && <p className="has-text-danger">{error}</p>}
@@ -368,14 +278,35 @@ function ManageArtists() {
             {filteredArtists.map((artist) => (
               <article className="LocalArtistCardCompact" key={artist.id}>
                 <div className="LocalArtistRow__media">
-                  {artist.image_url ? (
-                    <img className="LocalArtistRow__avatar" src={artist.image_url} alt={artist.name} />
+                  {artist.image_url || artist.image_url ? (
+                    <img
+                      className="LocalArtistRow__avatar"
+                      src={artist.image_url || artist.image_url}
+                      alt={artist.name}
+                    />
                   ) : (
                     <div className="LocalArtistRow__avatar LocalArtistRow__avatar--placeholder" />
                   )}
                   <div>
                     <p className="LocalArtistRow__name">{artist.name}</p>
                     <code className="LocalArtistRow__id">{artist.id}</code>
+                  </div>
+                </div>
+                <div className="field mt-2 mb-2">
+                  <label className="label has-text-light is-size-7">ID Tidal (releases)</label>
+                  <div className="is-flex" style={{ gap: '8px', flexWrap: 'wrap' }}>
+                    <Input
+                      value={tidalDrafts[String(artist.id)] ?? ''}
+                      onChange={onTidalDraftInputChange(artist.id)}
+                      placeholder="ex: 6951950"
+                    />
+                    <Button
+                      onClick={() => onSaveTidalId(artist.id)}
+                      className="LocalActionButton"
+                      disabled={savingTidalId === String(artist.id)}
+                    >
+                      {savingTidalId === String(artist.id) ? 'A guardar…' : 'Guardar ID Tidal'}
+                    </Button>
                   </div>
                 </div>
                 <div className="LocalArtistRow__actions">

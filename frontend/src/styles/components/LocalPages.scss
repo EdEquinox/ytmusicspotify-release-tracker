@@ -2,6 +2,15 @@
   color: #f5f5f5;
 }
 
+/* Alarga à área útil do Content (compensa padding horizontal 15px). */
+.LocalPage--full {
+  box-sizing: border-box;
+  width: calc(100% + 30px);
+  max-width: none;
+  margin-left: -15px;
+  margin-right: -15px;
+}
+
 .LocalPanel {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -11,6 +20,95 @@
 
 .LocalPanel--toolbar {
   padding: 16px;
+}
+
+.LocalReleasesToolbar {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.LocalReleasesToolbar__row.LocalTopRow {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.LocalTopRow.LocalReleasesToolbar__main {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.LocalReleasesToolbar__tidal {
+  flex: 1 1 200px;
+  min-width: 160px;
+  max-width: none;
+  margin-bottom: 0;
+}
+
+.LocalReleasesToolbar__tail {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  .LocalReleasesToolbar__tail {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+}
+
+.LocalReleasesToolbar__tidal .label {
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+}
+
+.LocalReleasesToolbar__results {
+  margin-top: 10px;
+}
+
+.LocalReleasesFilterDropdown {
+  position: relative;
+}
+
+.LocalReleasesFilterDropdown__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.LocalReleasesFilterDropdown__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  min-width: 1.35rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(120, 200, 255, 0.35);
+  color: #eaf6ff;
+}
+
+.LocalReleasesFilterDropdown__menu {
+  min-width: min(320px, 92vw);
+  z-index: 40;
+}
+
+.LocalReleasesFilterDropdown .dropdown-content {
+  background: #2b2b2b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  padding: 12px 14px;
+}
+
+.LocalReleasesFilterDropdown__select select {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ededed;
 }
 
 .LocalTopRow {
@@ -146,7 +244,7 @@
   text-decoration: underline;
 }
 
-.LocalSpotifyLinkButton {
+.LocalStreamLinkButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -160,7 +258,7 @@
   text-decoration: none;
 }
 
-.LocalSpotifyLinkButton:hover {
+.LocalStreamLinkButton:hover {
   background: rgba(59, 130, 246, 0.28);
   text-decoration: none;
 }

@@ -5,11 +5,30 @@ import time
 
 from ytmusicapi import YTMusic
 
-from backend_client import _read_settings
-from spotiflac_download import _normalize_spotiflac_template
-from spotify_client import _build_spotify_client, _ensure_spotify_token_non_interactive
-from sync_likes import _sync_likes_cycle
-from ytmusic_auth import _is_ytmusic_auth_error
+from services.backend_client import _read_settings
+from services.spotiflac_download import _normalize_spotiflac_template
+from services.spotify_client import _build_spotify_client, _ensure_spotify_token_non_interactive
+from services.ytmusic_auth import _is_ytmusic_auth_error
+from sync.likes_cycle import _sync_likes_cycle
+
+
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _tidal_only_from_env() -> bool | None:
+    """None = variável não definida; nesse caso usa-se ``reverse_tidal_only`` nas settings."""
+    raw = os.getenv("REVERSE_TIDAL_ONLY", "").strip()
+    if raw == "":
+        return None
+    return _env_truthy("REVERSE_TIDAL_ONLY")
+
+
+def _effective_tidal_only(settings: dict) -> bool:
+    env = _tidal_only_from_env()
+    if env is not None:
+        return env
+    return bool(settings.get("reverse_tidal_only", True))
 
 
 def _load_ytmusic_client(auth_file: str) -> YTMusic:
@@ -18,8 +37,10 @@ def _load_ytmusic_client(auth_file: str) -> YTMusic:
 
 
 def main() -> None:
-    backend_url = os.getenv("REVERSE_BACKEND_URL", "http://backend:8000").rstrip("/")
+    backend_url = os.getenv("REVERSE_BACKEND_URL", "http://backend:8001").rstrip("/")
     ytmusic_auth_file = os.getenv("REVERSE_YTMUSIC_AUTH_FILE", "/data/ytmusic_auth.json").strip()
+    _env_tidal = _tidal_only_from_env()
+    tidal_only = True if _env_tidal is None else _env_tidal
     spotify_playlist_id = ""
     spotify_client_id = ""
     spotify_client_secret = ""
@@ -49,23 +70,28 @@ def main() -> None:
         os.getenv("REVERSE_SPOTIFLAC_USE_ALBUM_SUBFOLDERS", "true").strip().lower() != "false"
     )
 
+    mode = "tidal-only (sem Spotify API)" if tidal_only else "Spotify + opcional Tidal em cache"
     print(
-        f"[reverse] Worker started. Backend={backend_url} Playlist={spotify_playlist_id} "
+        f"[reverse] Worker started. Modo={mode}. Backend={backend_url} "
         f"LikedLimit={liked_limit} Poll={poll_seconds}s"
     )
 
     ytmusic = _load_ytmusic_client(ytmusic_auth_file)
-    spotify, spotify_auth_manager = _build_spotify_client(
-        backend_url,
-        spotify_cache_path,
-        spotify_client_id,
-        spotify_client_secret,
-        reverse_redirect_uri,
-    )
+    spotify = None
+    spotify_auth_manager = None
+    if not tidal_only:
+        spotify, spotify_auth_manager = _build_spotify_client(
+            backend_url,
+            spotify_cache_path,
+            spotify_client_id,
+            spotify_client_secret,
+            reverse_redirect_uri,
+        )
 
     while True:
         try:
             settings = _read_settings(backend_url)
+            tidal_only = _effective_tidal_only(settings)
             spotify_playlist_id = (
                 str(settings.get("reverse_spotify_playlist_id") or spotify_playlist_id).strip()
             )
@@ -91,7 +117,6 @@ def main() -> None:
                 int(settings.get("reverse_track_spacing_ms", reverse_track_spacing_ms)),
                 0,
             )
-            # Keep strict service selection independent from settings/env.
             spotiflac_services = ["tidal"]
             spotiflac_filename_format = (
                 str(settings.get("reverse_spotiflac_filename_format", spotiflac_filename_format)).strip()
@@ -103,21 +128,33 @@ def main() -> None:
             spotiflac_use_album_subfolders = bool(
                 settings.get("reverse_spotiflac_use_album_subfolders", spotiflac_use_album_subfolders)
             )
-            configured_redirect = str(settings.get("reverse_spotify_redirect_uri", "")).strip()
-            if configured_redirect and configured_redirect != reverse_redirect_uri:
-                reverse_redirect_uri = configured_redirect
-                spotify, spotify_auth_manager = _build_spotify_client(
-                    backend_url,
-                    spotify_cache_path,
-                    spotify_client_id,
-                    spotify_client_secret,
-                    reverse_redirect_uri,
-                )
-            if add_to_playlist and not spotify_playlist_id:
-                raise RuntimeError("Missing reverse_spotify_playlist_id in Settings (or REVERSE_SPOTIFY_PLAYLIST_ID env).")
-            if not _ensure_spotify_token_non_interactive(spotify_auth_manager):
-                time.sleep(poll_seconds)
-                continue
+
+            if tidal_only:
+                add_to_playlist = False
+                spotify = None
+                spotify_auth_manager = None
+            else:
+                configured_redirect = str(settings.get("reverse_spotify_redirect_uri", "")).strip()
+                need_spotify_build = spotify is None or spotify_auth_manager is None
+                if configured_redirect and configured_redirect != reverse_redirect_uri:
+                    reverse_redirect_uri = configured_redirect
+                    need_spotify_build = True
+                if need_spotify_build:
+                    spotify, spotify_auth_manager = _build_spotify_client(
+                        backend_url,
+                        spotify_cache_path,
+                        spotify_client_id,
+                        spotify_client_secret,
+                        reverse_redirect_uri,
+                    )
+                if add_to_playlist and not spotify_playlist_id:
+                    raise RuntimeError(
+                        "Missing reverse_spotify_playlist_id in Settings (or REVERSE_SPOTIFY_PLAYLIST_ID env)."
+                    )
+                if not _ensure_spotify_token_non_interactive(spotify_auth_manager):
+                    time.sleep(poll_seconds)
+                    continue
+
             _sync_likes_cycle(
                 backend_url=backend_url,
                 ytmusic=ytmusic,
@@ -125,6 +162,7 @@ def main() -> None:
                 spotify_playlist_id=spotify_playlist_id,
                 liked_limit=liked_limit,
                 add_to_playlist=add_to_playlist,
+                tidal_only=tidal_only,
                 spotiflac_enabled=spotiflac_enabled,
                 spotiflac_output_dir=spotiflac_output_dir,
                 spotiflac_command_template=spotiflac_command_template,
