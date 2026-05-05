@@ -123,6 +123,7 @@ function ManageArtists() {
         name: artist.name,
         image_url: artist.image_url || null,
         spotify_id: '',
+        tidal_id:artist.id
       })
       await loadArtists()
     } catch (err) {

@@ -11,6 +11,8 @@ from models.schemas import AppSettings
 def _default_settings_payload() -> dict:
     return AppSettings(
         playlist_id="",
+        ytmusic_user="",
+        reverse_ytmusic_user="",
         spotify_client_id=os.getenv("SPOTIFY_CLIENT_ID", "").strip(),
         spotify_client_secret=os.getenv("SPOTIFY_CLIENT_SECRET", "").strip(),
         spotify_oauth_client_id=os.getenv("REACT_APP_SPOTIFY_CLIENT_ID", "").strip(),

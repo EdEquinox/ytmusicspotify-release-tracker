@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-ytmusicapi
+ytmusicapi>=1.12.0
 tidalapi
 spotiflac  # upgrade when a release accepts Tidal track URLs on API/CLI; callers already pass Tidal URLs here
 mutagen

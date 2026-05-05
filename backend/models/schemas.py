@@ -124,6 +124,8 @@ class LocalFetchJob(BaseModel):
 
 class AppSettings(BaseModel):
     playlist_id: str = ""
+    ytmusic_user: str = ""
+    reverse_ytmusic_user: str = ""
     auto_fetch_enabled: bool = False
     auto_fetch_time: str = "04:00"
     auto_fetch_window_days: int = 1
@@ -159,6 +161,8 @@ class AppSettings(BaseModel):
 
 class AppSettingsUpdate(BaseModel):
     playlist_id: str = ""
+    ytmusic_user: str = ""
+    reverse_ytmusic_user: str = ""
     auto_fetch_enabled: bool = False
     auto_fetch_time: str = "04:00"
     auto_fetch_window_days: int = Field(default=1, ge=1, le=30)

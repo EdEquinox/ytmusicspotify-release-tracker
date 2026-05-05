@@ -1,2 +1,2 @@
 requests
-ytmusicapi
+ytmusicapi>=1.12.0

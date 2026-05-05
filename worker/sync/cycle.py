@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import time
 from typing import Any
 
@@ -22,6 +24,21 @@ from services.playlist_utils import (
 from services.search_pickers import _pick_album_browse_id, _pick_single_video_id, _pick_video_id
 
 
+def _worker_diag() -> bool:
+    return os.getenv("WORKER_DIAG", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _is_ytmusic_json_transport_failure(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return isinstance(exc, json.JSONDecodeError) or "expecting value" in msg
+
+
+def _search_failure_hint(exc: Exception) -> str:
+    if _is_ytmusic_json_transport_failure(exc):
+        return " [provavel resposta HTML/vazio do YouTube: cookie, rate limit ou IP bloqueado]"
+    return ""
+
+
 def _sync_cycle(
     backend_url: str, ytmusic: YTMusic, playlist_id: str, strict_audio_only: bool = True
 ) -> str:
@@ -37,6 +54,8 @@ def _sync_cycle(
         return "idle"
 
     print(f"[worker] Processing {len(releases)} releases from CSV queue")
+    search_attempts = 0
+    json_transport_failures = 0
     for release in releases:
         had_processed_items = True
         release_id = str(release.get("id", "")).strip()
@@ -45,6 +64,11 @@ def _sync_cycle(
         if not release_id or not query:
             _create_error(backend_url, release, "Invalid release payload (missing id/name)")
             continue
+
+        search_attempts += 1
+        if _worker_diag():
+            q_preview = query if len(query) <= 120 else query[:117] + "..."
+            print(f"[worker][diag] release id={release_id} album_type={album_type!r} query={q_preview!r}")
 
         try:
             if album_type in {"album", "compilation"}:
@@ -94,8 +118,13 @@ def _sync_cycle(
             if _is_ytmusic_auth_error(exc):
                 print(f"[worker] YTMusic auth error during search: {exc}")
                 return "ytmusic_auth_error"
+            if _is_ytmusic_json_transport_failure(exc):
+                json_transport_failures += 1
             _create_error(backend_url, release, f"Failed to search on YTMusic: {exc}")
-            print(f"[worker] Search failed for '{query}': {exc}")
+            hint = _search_failure_hint(exc)
+            print(
+                f"[worker] Search failed ({type(exc).__name__}) for {album_type!r} query: {query!r}{hint} — {exc}"
+            )
             continue
         try:
             count_before = _playlist_track_count(ytmusic, playlist_id)
@@ -136,4 +165,14 @@ def _sync_cycle(
                 return "ytmusic_auth_error"
             _create_error(backend_url, release, f"Failed to add on YTMusic: {exc}")
             print(f"[worker] Add-to-playlist failed for '{query}': {exc}")
+    if (
+        had_processed_items
+        and search_attempts >= 1
+        and json_transport_failures == search_attempts
+    ):
+        print(
+            "[worker] Todas as pesquisas YTMusic deste lote falharam com resposta não-JSON (HTML/vazio). "
+            "O worker vai usar backoff longo; corrige cookies/auth ou intervalos antes de voltar a insistir."
+        )
+        return "ytmusic_transport_error"
     return "processed" if had_processed_items else "idle"

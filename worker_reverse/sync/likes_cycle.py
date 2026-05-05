@@ -55,7 +55,20 @@ def _sync_likes_cycle(
     except Exception as exc:
         print(f"[reverse] Failed to load playlist track links: {exc}")
         playlist_links_by_video = {}
-    payload = ytmusic.get_liked_songs(limit=liked_limit) or {}
+        
+    try:
+        payload = ytmusic.get_liked_songs(limit=liked_limit) or {}
+    except Exception as exc:
+        err_msg = str(exc).lower()
+        if "expecting value: line 1 column 1" in err_msg:
+            print(f"[reverse] ERRO: O YTMusic devolveu HTML em vez de JSON. Causas comuns:\n"
+                  f"1. IP bloqueado por excesso de pedidos (Captcha/429). Aumenta os intervalos nas Settings.\n"
+                  f"2. Biblioteca ytmusicapi desatualizada. Executa: docker compose build --no-cache worker worker-reverse\n"
+                  f"Erro técnico: {exc}")
+        else:
+            print(f"[reverse] Falha ao obter os likes do YTMusic: {exc}")
+        return
+        
     tracks = payload.get("tracks") or []
     print(f"[reverse] Loaded {len(tracks)} liked songs from YTMusic")
 

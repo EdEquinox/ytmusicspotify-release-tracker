@@ -1,24 +1,6 @@
 {
   "compilerOptions": {
-    "checkJs": false,
-    "jsx": "react-jsx",
-    "resolveJsonModule": true,
-    "moduleResolution": "bundler",
-    "target": "esnext",
-    "paths": {
-      "components": ["./src/components"],
-      "components/*": ["./src/components/*"],
-      "state": ["./src/state"],
-      "state/*": ["./src/state/*"],
-      "sagas": ["./src/sagas"],
-      "sagas/*": ["./src/sagas/*"],
-      "helpers": ["./src/helpers.js"],
-      "enums": ["./src/enums.js"],
-      "albums": ["./src/albums.js"],
-      "api": ["./src/api.js"],
-      "auth": ["./src/auth.js"],
-      "backendApi": ["./src/backendApi.js"]
-    }
+    "baseUrl": "src"
   },
   "include": ["src"]
 }

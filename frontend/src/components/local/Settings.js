@@ -41,6 +41,8 @@ const STATIC_PERSISTED_SETTINGS = {
 function mapSettingsToForm(settings) {
   return {
     playlist_id: settings.playlist_id || '',
+    ytmusic_user: settings.ytmusic_user || '',
+    reverse_ytmusic_user: settings.reverse_ytmusic_user || '',
     local_fetch_spacing_ms: Number(settings.local_fetch_spacing_ms || 120),
     release_workers: Number(settings.release_workers || 10),
     worker_idle_seconds: Number(settings.worker_idle_seconds || 20),
@@ -99,6 +101,8 @@ function Settings() {
       await updateSettings({
         ...STATIC_PERSISTED_SETTINGS,
         playlist_id: form.playlist_id,
+        ytmusic_user: form.ytmusic_user,
+        reverse_ytmusic_user: form.reverse_ytmusic_user,
         local_fetch_spacing_ms: Number(form.local_fetch_spacing_ms || 0),
         release_workers: Number(form.release_workers || 1),
         worker_idle_seconds: Number(form.worker_idle_seconds || 20),
@@ -249,6 +253,30 @@ function Settings() {
                 placeholder="Ex: PLxxxxxxxxxxxxxxxxxxxx"
               />
             </div>
+            <div className="field mb-4">
+              <HelpLabel
+                text="YTMusic — user ID (opcional)"
+                help="Só para conta de marca (brand): ID na URL em myaccount.google.com/brandaccounts. Várias contas Google pessoais: usa x-goog-authuser no JSON de auth. Se vazio, usa YTMUSIC_USER do ambiente (se existir)."
+              />
+              <Input
+                value={form.ytmusic_user}
+                onChange={(event) => setForm((prev) => ({ ...prev, ytmusic_user: event.target.value }))}
+                placeholder="Vazio = conta predefinida / env"
+              />
+            </div>
+            <div className="field mb-5">
+              <HelpLabel
+                text="YTMusic reverse — user ID (opcional)"
+                help="Igual ao anterior, mas para o ficheiro REVERSE_YTMUSIC_AUTH_FILE quando é diferente do principal. Se vazio, reutiliza o user principal em cima, depois REVERSE_YTMUSIC_USER / YTMUSIC_USER no ambiente."
+              />
+              <Input
+                value={form.reverse_ytmusic_user}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, reverse_ytmusic_user: event.target.value }))
+                }
+                placeholder="Vazio = mesmo que principal / env"
+              />
+            </div>
 
             <h3 className="title is-6 has-text-light mb-3">Importar dados (JSON)</h3>
             <div className="columns is-multiline mb-5">
@@ -269,6 +297,9 @@ function Settings() {
                   >
                     {validatingAuthJson ? 'A validar...' : 'Validar auth YTMusic'}
                   </Button>
+                  <p className="has-text-grey is-size-7 mt-1">
+                    A validação usa os user IDs já gravados com Gravar, não rascunhos só no formulário.
+                  </p>
                 </div>
               </div>
               <div className="column is-4-desktop is-12-tablet">

@@ -45,6 +45,8 @@ def update_settings(payload: AppSettingsUpdate) -> AppSettings:
         updated = current.model_copy(
             update={
                 "playlist_id": payload.playlist_id.strip(),
+                "ytmusic_user": payload.ytmusic_user.strip(),
+                "reverse_ytmusic_user": payload.reverse_ytmusic_user.strip(),
                 "auto_fetch_enabled": payload.auto_fetch_enabled,
                 "auto_fetch_time": payload.auto_fetch_time,
                 "auto_fetch_window_days": payload.auto_fetch_window_days,
@@ -159,16 +161,21 @@ def import_ytmusic_auth(payload: YTMusicAuthImportPayload) -> dict[str, str]:
 @router.post("/settings/ytmusic-auth/validate")
 def validate_ytmusic_auth() -> dict:
     targets = _ytmusic_auth_targets()
-    ytmusic_user = os.getenv("YTMUSIC_USER", "").strip() or None
     results: list[dict[str, str | bool]] = []
     all_ok = True
 
-    for target in targets:
+    with state._settings_lock:
+        app = _read_settings()
+    main_user = (app.ytmusic_user or "").strip() or os.getenv("YTMUSIC_USER", "").strip() or None
+    reverse_user = (app.reverse_ytmusic_user or "").strip() or os.getenv("REVERSE_YTMUSIC_USER", "").strip() or None
+
+    for idx, target in enumerate(targets):
+        user_for_target = (reverse_user or main_user) if idx == 1 and len(targets) > 1 else main_user
         try:
             if not target.exists():
                 raise FileNotFoundError(f"{target} does not exist.")
             auth_payload = json.loads(target.read_text())
-            _validate_ytmusic_auth_payload(auth_payload, ytmusic_user)
+            _validate_ytmusic_auth_payload(auth_payload, user_for_target)
             results.append({"target": str(target), "ok": True, "message": "Auth validated successfully."})
         except Exception as exc:
             all_ok = False

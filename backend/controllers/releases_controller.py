@@ -389,12 +389,10 @@ def search_tidal_artists(q: str, limit: int = 15) -> list[SpotifyArtistItem]:
         name = str(getattr(ar, "name", None) or "").strip()
         if not name:
             continue
-        image_url = None
-        try:
-            if getattr(ar, "picture", None):
-                image_url = ar.image(640)
-        except Exception:
-            image_url = None
+        image_url = ar.image()
+        if getattr(ar, "picture", None) and ar.picture is not None and callable(getattr(ar, "picture")):
+            image_url = ar.picture(640)
+
         out.append(SpotifyArtistItem(id=str(int(aid)), name=name, image_url=image_url))
     return out
 

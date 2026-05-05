@@ -25,6 +25,8 @@ services:
     environment:
       SPOTIFY_CLIENT_ID: "${SPOTIFY_CLIENT_ID:-}"
       SPOTIFY_CLIENT_SECRET: "${SPOTIFY_CLIENT_SECRET:-}"
+      YTMUSIC_USER: "${YTMUSIC_USER:-}"
+      REVERSE_YTMUSIC_USER: "${REVERSE_YTMUSIC_USER:-}"
     volumes:
       - /opt/ytmusic-release-tracker/data:/data
     healthcheck:
@@ -64,6 +66,7 @@ services:
       REVERSE_BACKEND_URL: "${REVERSE_WORKER_BACKEND_URL:-http://backend:8000}"
       REVERSE_YTMUSIC_AUTH_FILE: "${REVERSE_YTMUSIC_AUTH_FILE:-/data/ytmusic_auth.json}"
       REVERSE_YTMUSIC_USER: "${REVERSE_YTMUSIC_USER:-}"
+      YTMUSIC_USER: "${YTMUSIC_USER:-}"
       REVERSE_TIDAL_ONLY: "${REVERSE_TIDAL_ONLY:-1}"
       REVERSE_SPOTIFY_CACHE_PATH: "${REVERSE_SPOTIFY_CACHE_PATH:-/data/spotify_oauth_cache_reverse.json}"
     volumes:

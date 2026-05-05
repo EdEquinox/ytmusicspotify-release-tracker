@@ -31,14 +31,18 @@ def _effective_tidal_only(settings: dict) -> bool:
     return bool(settings.get("reverse_tidal_only", True))
 
 
-def _load_ytmusic_client(auth_file: str) -> YTMusic:
+def _load_ytmusic_client(auth_file: str, ytmusic_user: str | None = None) -> YTMusic:
     print("[DEBUG] Inicializando YTMusic com Cookies (Browser Session)...")
-    return YTMusic(auth=auth_file)
+    user = (ytmusic_user or "").strip() or None
+    return YTMusic(auth=auth_file, user=user)
 
 
 def main() -> None:
     backend_url = os.getenv("REVERSE_BACKEND_URL", "http://backend:8001").rstrip("/")
     ytmusic_auth_file = os.getenv("REVERSE_YTMUSIC_AUTH_FILE", "/data/ytmusic_auth.json").strip()
+    env_reverse_yt_user = os.getenv("REVERSE_YTMUSIC_USER", "").strip()
+    env_main_yt_user = os.getenv("YTMUSIC_USER", "").strip()
+    last_effective_ytm_user = env_reverse_yt_user or env_main_yt_user
     _env_tidal = _tidal_only_from_env()
     tidal_only = True if _env_tidal is None else _env_tidal
     spotify_playlist_id = ""
@@ -73,10 +77,10 @@ def main() -> None:
     mode = "tidal-only (sem Spotify API)" if tidal_only else "Spotify + opcional Tidal em cache"
     print(
         f"[reverse] Worker started. Modo={mode}. Backend={backend_url} "
-        f"LikedLimit={liked_limit} Poll={poll_seconds}s"
+        f"LikedLimit={liked_limit} Poll={poll_seconds}s YTMUser={last_effective_ytm_user or 'default'}"
     )
 
-    ytmusic = _load_ytmusic_client(ytmusic_auth_file)
+    ytmusic = _load_ytmusic_client(ytmusic_auth_file, last_effective_ytm_user or None)
     spotify = None
     spotify_auth_manager = None
     if not tidal_only:
@@ -117,6 +121,16 @@ def main() -> None:
                 int(settings.get("reverse_track_spacing_ms", reverse_track_spacing_ms)),
                 0,
             )
+            effective_yt_user = (
+                str(settings.get("reverse_ytmusic_user") or "").strip()
+                or str(settings.get("ytmusic_user") or "").strip()
+                or env_reverse_yt_user
+                or env_main_yt_user
+            )
+            if effective_yt_user != last_effective_ytm_user:
+                last_effective_ytm_user = effective_yt_user
+                ytmusic = _load_ytmusic_client(ytmusic_auth_file, effective_yt_user or None)
+                print(f"[reverse] YTMusic user atualizado a partir das settings: {effective_yt_user or 'default'}")
             spotiflac_services = ["tidal"]
             spotiflac_filename_format = (
                 str(settings.get("reverse_spotiflac_filename_format", spotiflac_filename_format)).strip()
@@ -179,7 +193,7 @@ def main() -> None:
             if _is_ytmusic_auth_error(exc):
                 print("[reverse] Attempting to reload YTMusic auth from file...")
                 try:
-                    ytmusic = _load_ytmusic_client(ytmusic_auth_file)
+                    ytmusic = _load_ytmusic_client(ytmusic_auth_file, last_effective_ytm_user or None)
                     print(
                         "[reverse] YTMusic auth reloaded. If 401 persists, reimport auth JSON in frontend."
                     )
