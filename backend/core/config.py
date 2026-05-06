@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = ROOT_DIR / "data"
+DATA_DIR = ROOT_DIR / "data/config"
 ARTISTS_FILE = DATA_DIR / "artists.json"
 ERRORS_FILE = DATA_DIR / "errors.json"
 RELEASES_FILE = DATA_DIR / "releases.json"
