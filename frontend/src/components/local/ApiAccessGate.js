@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiAuthHeaders, clearSessionToken, getSessionToken, setSessionToken } from 'apiAuth'
+import { clearSessionToken, getSessionToken, setSessionToken } from 'apiAuth'
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001'
 
