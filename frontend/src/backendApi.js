@@ -1,3 +1,5 @@
+import { apiAuthHeaders } from 'apiAuth'
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001'
 
 /**
@@ -9,7 +11,11 @@ async function request(path, options = {}) {
   let response
   try {
     response = await fetch(`${BACKEND_URL}${path}`, {
-      headers: { 'content-type': 'application/json', ...(options.headers || {}) },
+      headers: {
+        'content-type': 'application/json',
+        ...apiAuthHeaders(),
+        ...(options.headers || {}),
+      },
       ...options,
     })
   } catch (err) {

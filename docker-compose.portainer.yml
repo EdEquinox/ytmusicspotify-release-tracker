@@ -23,6 +23,11 @@ services:
     ports:
       - "${BACKEND_PORT:-8001}:8000"
     environment:
+      API_TOKEN: "${API_TOKEN:-}"
+      APP_USERNAME: "${APP_USERNAME:-}"
+      APP_PASSWORD: "${APP_PASSWORD:-}"
+      JWT_SECRET: "${JWT_SECRET:-}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-}"
       SPOTIFY_CLIENT_ID: "${SPOTIFY_CLIENT_ID:-}"
       SPOTIFY_CLIENT_SECRET: "${SPOTIFY_CLIENT_SECRET:-}"
       YTMUSIC_USER: "${YTMUSIC_USER:-}"
@@ -48,6 +53,7 @@ services:
     labels:
       - com.centurylinklabs.watchtower.enable=true
     environment:
+      API_TOKEN: "${API_TOKEN:-}"
       BACKEND_URL: "${WORKER_BACKEND_URL:-http://backend:8000}"
       YTMUSIC_AUTH_FILE: "${YTMUSIC_AUTH_FILE:-/data/ytmusic_auth.json}"
       YTMUSIC_USER: "${YTMUSIC_USER:-}"
@@ -63,6 +69,7 @@ services:
     labels:
       - com.centurylinklabs.watchtower.enable=true
     environment:
+      API_TOKEN: "${API_TOKEN:-}"
       REVERSE_BACKEND_URL: "${REVERSE_WORKER_BACKEND_URL:-http://backend:8000}"
       REVERSE_YTMUSIC_AUTH_FILE: "${REVERSE_YTMUSIC_AUTH_FILE:-/data/ytmusic_auth.json}"
       REVERSE_YTMUSIC_USER: "${REVERSE_YTMUSIC_USER:-}"
