@@ -1,5 +1,4 @@
 import { Route, Routes as RouterRoutes } from 'react-router-dom'
-import ApiAccessGate from 'components/local/ApiAccessGate'
 import { Auth, App } from 'components'
 import { Releases } from 'components/releases'
 import ManageArtists from 'components/local/ManageArtists'
@@ -10,7 +9,6 @@ import HistoryDownloads from 'components/local/HistoryDownloads'
 
 function Routes() {
   return (
-    <ApiAccessGate>
     <RouterRoutes>
       <Route path="/" element={<App />}>
         <Route index element={<Releases />} />
@@ -22,7 +20,6 @@ function Routes() {
       </Route>
       <Route path="auth" element={<Auth />} />
     </RouterRoutes>
-    </ApiAccessGate>
   )
 }
 

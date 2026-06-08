@@ -4,7 +4,6 @@ from typing import Any
 
 import requests
 
-from services.api_headers import api_headers
 from services.matching import _normalize, _track_key
 
 
@@ -18,7 +17,6 @@ def _search_tidal_tracks(backend_url: str, query: str, limit: int = 8) -> list[d
             f"{backend_url}/releases/tidal/tracks/search",
             params={"q": q, "limit": str(min(max(limit, 1), 25))},
             timeout=45,
-            headers=api_headers(),
         )
         response.raise_for_status()
         data = response.json()
@@ -55,7 +53,6 @@ def _upsert_playlist_track_link(
             f"{backend_url}/releases/playlist-track-links",
             json=payload,
             timeout=20,
-            headers=api_headers(),
         )
         if not r.ok:
             print(f"[reverse] playlist-track-links upsert HTTP {r.status_code}: {(r.text or '')[:120]}")
@@ -66,9 +63,7 @@ def _upsert_playlist_track_link(
 def _fetch_playlist_track_links(backend_url: str) -> dict[str, dict[str, Any]]:
     """videoId YouTube Music → linha com tidal_url (preenchido pelo worker de releases)."""
     try:
-        response = requests.get(
-            f"{backend_url}/releases/playlist-track-links", timeout=20, headers=api_headers()
-        )
+        response = requests.get(f"{backend_url}/releases/playlist-track-links", timeout=20)
         response.raise_for_status()
         rows = response.json()
     except Exception:
@@ -84,14 +79,14 @@ def _fetch_playlist_track_links(backend_url: str) -> dict[str, dict[str, Any]]:
 
 
 def _read_settings(backend_url: str) -> dict[str, Any]:
-    response = requests.get(f"{backend_url}/settings", timeout=20, headers=api_headers())
+    response = requests.get(f"{backend_url}/settings", timeout=20)
     response.raise_for_status()
     payload = response.json()
     return payload if isinstance(payload, dict) else {}
 
 
 def _list_historico_ids(backend_url: str) -> set[str]:
-    response = requests.get(f"{backend_url}/historico", timeout=20, headers=api_headers())
+    response = requests.get(f"{backend_url}/historico", timeout=20)
     response.raise_for_status()
     rows = response.json()
     if not isinstance(rows, list):
@@ -104,7 +99,6 @@ def _add_historico(backend_url: str, track_id: str, artist: str, title: str) -> 
         f"{backend_url}/historico",
         timeout=20,
         json={"id": track_id, "artista": artist, "titulo": title},
-        headers=api_headers(),
     ).raise_for_status()
 
 
@@ -117,7 +111,6 @@ def _report_not_found(backend_url: str, artist: str, title: str) -> None:
             "artist_name": artist,
             "reason": f"NAO_NO_SPOTIFY: Aprovada no YTM, mas nao encontrada no Spotify ({artist} - {title})",
         },
-        headers=api_headers(),
     ).raise_for_status()
 
 
@@ -130,12 +123,11 @@ def _report_error(backend_url: str, artist: str, title: str, reason: str) -> Non
             "artist_name": artist,
             "reason": reason,
         },
-        headers=api_headers(),
     ).raise_for_status()
 
 
 def _list_errors(backend_url: str) -> list[dict[str, Any]]:
-    response = requests.get(f"{backend_url}/erros", timeout=20, headers=api_headers())
+    response = requests.get(f"{backend_url}/erros", timeout=20)
     response.raise_for_status()
     payload = response.json()
     return payload if isinstance(payload, list) else []
@@ -155,7 +147,7 @@ def _extract_manual_spotify_links(errors: list[dict[str, Any]]) -> dict[str, str
 
 def _clear_resolved_errors(backend_url: str, artist: str, title: str) -> None:
     try:
-        response = requests.get(f"{backend_url}/erros", timeout=20, headers=api_headers())
+        response = requests.get(f"{backend_url}/erros", timeout=20)
         response.raise_for_status()
         rows = response.json()
     except Exception:
@@ -181,8 +173,6 @@ def _clear_resolved_errors(backend_url: str, artist: str, title: str) -> None:
         if not error_id:
             continue
         try:
-            requests.delete(
-                f"{backend_url}/erros/{error_id}", timeout=20, headers=api_headers()
-            ).raise_for_status()
+            requests.delete(f"{backend_url}/erros/{error_id}", timeout=20).raise_for_status()
         except Exception:
             continue

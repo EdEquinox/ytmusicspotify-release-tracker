@@ -4,8 +4,6 @@ from typing import Any
 
 import requests
 
-from services.api_headers import api_headers
-
 
 def _create_error(
     backend_url: str,
@@ -25,20 +23,20 @@ def _create_error(
     if release_id:
         payload["release_id"] = release_id
     try:
-        requests.post(f"{backend_url}/erros", json=payload, timeout=20, headers=api_headers())
+        requests.post(f"{backend_url}/erros", json=payload, timeout=20)
     except Exception as exc:
         print(f"[worker] Failed to persist sync error: {exc}")
 
 
 def _delete_csv_item(backend_url: str, release_id: str) -> None:
     try:
-        requests.delete(f"{backend_url}/csv/releases/{release_id}", timeout=20, headers=api_headers())
+        requests.delete(f"{backend_url}/csv/releases/{release_id}", timeout=20)
     except Exception as exc:
         print(f"[worker] Failed to remove release from CSV list: {release_id} ({exc})")
 
 
 def _fetch_csv_releases(backend_url: str) -> list[dict[str, Any]]:
-    response = requests.get(f"{backend_url}/csv/releases", timeout=20, headers=api_headers())
+    response = requests.get(f"{backend_url}/csv/releases", timeout=20)
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, list):
@@ -47,7 +45,7 @@ def _fetch_csv_releases(backend_url: str) -> list[dict[str, Any]]:
 
 
 def _fetch_backend_settings(backend_url: str) -> dict[str, Any]:
-    response = requests.get(f"{backend_url}/settings", timeout=20, headers=api_headers())
+    response = requests.get(f"{backend_url}/settings", timeout=20)
     response.raise_for_status()
     payload = response.json()
     if isinstance(payload, dict):
@@ -83,7 +81,6 @@ def _upsert_playlist_track_links(
             f"{backend_url}/releases/playlist-track-links",
             json={"items": items},
             timeout=30,
-            headers=api_headers(),
         )
         if not r.ok:
             print(f"[worker] playlist-track-links HTTP {r.status_code}: {(r.text or '')[:200]}")

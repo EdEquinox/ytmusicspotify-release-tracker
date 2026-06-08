@@ -77,29 +77,18 @@ function SetupGuide() {
           <div className="LocalPanel mt-4">
             <h3 className="title is-6 has-text-light">6) Acesso fora de casa (Cloudflare Tunnel)</h3>
             <p className="has-text-grey-light">
-              O Cloudflare Tunnel encripta o tráfego e esconde o IP de casa, mas <strong>não</strong> esconde
-              segredos embutidos no JavaScript. Por isso a app usa utilizador/palavra-passe no browser; o{' '}
-              <code>API_TOKEN</code> fica só nos workers.
+              A proteção de acesso fica no Cloudflare (Worker Basic Auth ou Access). A app não tem login próprio.
             </p>
             <ol className="has-text-grey-light">
               <li>
-                No stack: <code>APP_USERNAME</code>, <code>APP_PASSWORD</code>, <code>JWT_SECRET</code> e{' '}
-                <code>API_TOKEN</code> (este último só para workers).
+                Cria dois hostnames no tunnel: frontend (3001) e backend (8001), ambos com o teu Worker de auth.
               </li>
               <li>
-                Define <code>CORS_ORIGINS</code> com o URL HTTPS do frontend (ex.{' '}
-                <code>https://tracker.seudominio.com</code>).
+                Ajusta <code>REACT_APP_URL</code> e <code>REACT_APP_BACKEND_URL</code> para os URLs HTTPS públicos.
               </li>
               <li>
-                Cria dois hostnames no tunnel: frontend (3001) e backend (8001). Ajusta{' '}
-                <code>REACT_APP_BACKEND_URL</code> e <code>REACT_APP_URL</code> para HTTPS.
-              </li>
-              <li>Ao abrir a app, inicia sessão com a conta do stack (sessão ~7 dias no browser).</li>
-              <li>
-                Opcional: Cloudflare Access (Zero Trust) no tunnel como camada extra (email OTP, etc.).
-              </li>
-              <li>
-                Evita expor <code>BACKEND_PORT</code> na internet; usa só o tunnel para o backend.
+                Os workers Docker continuam a usar <code>http://backend:8000</code> na rede interna (sem passar pelo
+                Cloudflare).
               </li>
             </ol>
           </div>
