@@ -2,5 +2,5 @@ fastapi
 uvicorn[standard]
 ytmusicapi>=1.12.0
 tidalapi
-spotiflac  # upgrade when a release accepts Tidal track URLs on API/CLI; callers already pass Tidal URLs here
+spotiflac>=0.8.7,<0.9.0  # 0.9.x breaks Tidal track metadata (include_featuring)
 mutagen
