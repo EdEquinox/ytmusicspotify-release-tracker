@@ -8,10 +8,9 @@ import time
 import urllib.request
 from importlib.metadata import PackageNotFoundError, version
 
-from services.spotiflac_compat import apply_spotiflac_compat_patch
+from services.spotiflac_compat import apply_spotiflac_compat_patch, reset_spotiflac_compat_patch
 
-# 0.8.7 wheel on PyPI is incomplete; 0.6.0 is the last release with a valid module layout + include_featuring field.
-_DEFAULT_PIP_SPEC = "spotiflac==0.6.0"
+_DEFAULT_PIP_SPEC = "spotiflac"
 _PACKAGE_NAMES = ("spotiflac", "SpotiFLAC")
 _last_check_monotonic = 0.0
 
@@ -43,21 +42,11 @@ def _installed_version() -> str | None:
     return None
 
 
-def _pypi_latest_for_spec() -> str | None:
-    spec = _pip_spec()
-    if "==" in spec:
-        return spec.split("==", 1)[1].strip()
+def _pypi_latest_version() -> str | None:
     url = "https://pypi.org/pypi/spotiflac/json"
     try:
-        from packaging.version import Version
-
         with urllib.request.urlopen(url, timeout=30) as response:
             payload = json.loads(response.read().decode("utf-8"))
-        if ",<" in spec or spec.endswith("<0.9.0"):
-            releases = payload.get("releases", {})
-            allowed = [item for item in releases if Version(item) < Version("0.9.0")]
-            if allowed:
-                return str(max(allowed, key=Version))
         latest = str(payload.get("info", {}).get("version", "")).strip()
         return latest or None
     except Exception as exc:
@@ -74,26 +63,8 @@ def _is_newer(latest: str, installed: str) -> bool:
         return latest != installed
 
 
-def _needs_reinstall(installed: str | None, target: str) -> bool:
-    if not installed:
-        return True
-    if installed != target:
-        return True
-    try:
-        from packaging.version import Version
-
-        # Broken/incomplete releases we never want to keep.
-        if Version(installed) >= Version("0.9.0"):
-            return True
-        if Version(installed) >= Version("0.8.7"):
-            return True
-    except Exception:
-        pass
-    return False
-
-
 def _reload_spotiflac_modules() -> None:
-    apply_spotiflac_compat_patch._done = False  # type: ignore[attr-defined]
+    reset_spotiflac_compat_patch()
     for name in list(sys.modules):
         lowered = name.lower()
         if (
@@ -110,7 +81,7 @@ def _run_pip_install() -> tuple[bool, str | None]:
     spec = _pip_spec()
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-cache-dir", spec],
+            [sys.executable, "-m", "pip", "install", "--upgrade", "--no-cache-dir", spec],
             capture_output=True,
             text=True,
             timeout=600,
@@ -131,7 +102,7 @@ def _run_pip_install() -> tuple[bool, str | None]:
     if before and after and before != after:
         print(f"[reverse] spotiflac atualizado: {before} -> {after}")
     elif after:
-        print(f"[reverse] spotiflac na versão alvo ({after})")
+        print(f"[reverse] spotiflac na versão {after}")
     else:
         print("[reverse] spotiflac instalado/atualizado via pip")
     return True, after
@@ -145,32 +116,25 @@ def maybe_upgrade_spotiflac(force: bool = False) -> None:
     if not _auto_upgrade_enabled():
         return
 
-    installed = _installed_version()
-    target = _pypi_latest_for_spec()
-    if not target:
-        return
-
-    broken_or_wrong = _needs_reinstall(installed, target)
-    if broken_or_wrong:
-        force = True
-
     now = time.monotonic()
     interval = _upgrade_interval_seconds()
     if not force and _last_check_monotonic and (now - _last_check_monotonic) < interval:
         return
 
     _last_check_monotonic = now
+    installed = _installed_version()
+    latest = _pypi_latest_version()
+    if not latest:
+        return
 
-    if installed and not broken_or_wrong and not _is_newer(target, installed):
-        print(f"[reverse] spotiflac alvo={target}, instalado={installed} (sem update)")
+    if installed and not _is_newer(latest, installed):
+        print(f"[reverse] spotiflac PyPI={latest}, instalado={installed} (sem update)")
         return
 
     if not installed:
-        print(f"[reverse] spotiflac não encontrado; a instalar {target}...")
-    elif broken_or_wrong:
-        print(f"[reverse] spotiflac {installed} inválido/incompatível; a instalar {target}...")
+        print(f"[reverse] spotiflac não encontrado; a instalar {latest}...")
     else:
-        print(f"[reverse] spotiflac update disponível: {installed} -> {target}")
+        print(f"[reverse] spotiflac update disponível: {installed} -> {latest}")
 
     ok, detail = _run_pip_install()
     if not ok:

@@ -2,5 +2,5 @@ fastapi
 uvicorn[standard]
 ytmusicapi>=1.12.0
 tidalapi
-spotiflac==0.6.0
+spotiflac
 mutagen
