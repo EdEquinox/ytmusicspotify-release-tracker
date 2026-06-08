@@ -1,6 +1,6 @@
 requests
 ytmusicapi>=1.12.0
 spotipy
-# 0.9.x breaks Tidal track downloads (missing DownloadOptions.include_featuring)
-spotiflac>=0.8.7,<0.9.0
+# Prefer 0.6.0 (stable module + Tidal). Compat patch handles newer broken releases if installed.
+spotiflac==0.6.0
 mutagen

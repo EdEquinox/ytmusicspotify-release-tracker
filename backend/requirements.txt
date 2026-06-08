@@ -2,5 +2,5 @@ fastapi
 uvicorn[standard]
 ytmusicapi>=1.12.0
 tidalapi
-spotiflac>=0.8.7,<0.9.0  # 0.9.x breaks Tidal track metadata (include_featuring)
+spotiflac==0.6.0
 mutagen

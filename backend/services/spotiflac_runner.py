@@ -4,6 +4,20 @@ import os
 import shlex
 import subprocess
 
+from services.spotiflac_compat import apply_spotiflac_compat_patch
+
+
+def _load_spotiflac_class():
+    apply_spotiflac_compat_patch()
+    try:
+        from SpotiFLAC import SpotiFLAC as _SpotiFLAC
+
+        return _SpotiFLAC
+    except ImportError:
+        from backend import SpotiFLAC as _SpotiFLAC
+
+        return _SpotiFLAC
+
 
 def _fix_flac_artists_for_navidrome(
     before_snapshot: dict[str, tuple[int, int]],
@@ -114,13 +128,10 @@ def _download_with_spotiflac(
     os.makedirs(output_dir, exist_ok=True)
     before_snapshot = _files_snapshot(output_dir)
     api_error = ""
-    spotiflac_cls = None
     try:
-        from SpotiFLAC import SpotiFLAC as _SpotiFLAC
-
-        spotiflac_cls = _SpotiFLAC
+        spotiflac_cls = _load_spotiflac_class()
     except ImportError:
-        pass
+        spotiflac_cls = None
 
     if spotiflac_cls is not None:
         try:
