@@ -83,6 +83,8 @@ services:
       # 1 = sem API Spotify nem playlist; so likes com videoId em playlist_track_links.json + SpotiFLAC (Tidal).
       REVERSE_TIDAL_ONLY: "${REVERSE_TIDAL_ONLY:-1}"
       REVERSE_SPOTIFY_CACHE_PATH: "${REVERSE_SPOTIFY_CACHE_PATH:-/data/spotify_oauth_cache_reverse.json}"
+      REVERSE_SPOTIFLAC_PIP_AUTO_UPGRADE: "${REVERSE_SPOTIFLAC_PIP_AUTO_UPGRADE:-1}"
+      REVERSE_SPOTIFLAC_PIP_UPGRADE_INTERVAL_HOURS: "${REVERSE_SPOTIFLAC_PIP_UPGRADE_INTERVAL_HOURS:-24}"
     volumes:
       - ./worker_reverse:/app
       - ./data:/data

@@ -4,8 +4,6 @@ import os
 import shlex
 import subprocess
 
-from SpotiFLAC import SpotiFLAC
-
 
 def _fix_flac_artists_for_navidrome(
     before_snapshot: dict[str, tuple[int, int]],
@@ -120,6 +118,8 @@ def _download_with_spotiflac(
     before_snapshot = _files_snapshot(output_dir)
     # Preferred path for recent spotiflac versions (Python API).
     try:
+        from SpotiFLAC import SpotiFLAC
+
         SpotiFLAC(
             url=spotify_url,
             output_dir=output_dir,

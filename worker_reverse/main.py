@@ -5,6 +5,7 @@ import time
 
 from ytmusicapi import YTMusic
 
+from services.pip_upgrade import maybe_upgrade_spotiflac
 from services.backend_client import _read_settings
 from services.spotiflac_download import _normalize_spotiflac_template
 from services.spotify_client import _build_spotify_client, _ensure_spotify_token_non_interactive
@@ -80,6 +81,8 @@ def main() -> None:
         f"LikedLimit={liked_limit} Poll={poll_seconds}s YTMUser={last_effective_ytm_user or 'default'}"
     )
 
+    maybe_upgrade_spotiflac(force=True)
+
     ytmusic = _load_ytmusic_client(ytmusic_auth_file, last_effective_ytm_user or None)
     spotify = None
     spotify_auth_manager = None
@@ -93,6 +96,7 @@ def main() -> None:
         )
 
     while True:
+        maybe_upgrade_spotiflac()
         try:
             settings = _read_settings(backend_url)
             tidal_only = _effective_tidal_only(settings)
