@@ -8,13 +8,11 @@ from services.spotiflac_compat import apply_spotiflac_compat_patch
 
 
 def _load_spotiflac_callable():
-    try:
-        from SpotiFLAC import SpotiFLAC
-    except ImportError:
-        from backend import SpotiFLAC
 
+    from SpotiFLAC import SpotiFLAC as _SpotiFLAC
+    
     apply_spotiflac_compat_patch()
-    return SpotiFLAC
+    return _SpotiFLAC
 
 
 def _fix_flac_artists_for_navidrome(

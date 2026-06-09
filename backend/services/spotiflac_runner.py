@@ -8,11 +8,9 @@ from services.spotiflac_compat import apply_spotiflac_compat_patch
 
 
 def _load_spotiflac_class():
-    try:
-        from SpotiFLAC import SpotiFLAC as _SpotiFLAC
-    except ImportError:
-        from backend import SpotiFLAC as _SpotiFLAC
-
+    
+    from SpotiFLAC import SpotiFLAC as _SpotiFLAC
+    
     apply_spotiflac_compat_patch()
     return _SpotiFLAC
 
