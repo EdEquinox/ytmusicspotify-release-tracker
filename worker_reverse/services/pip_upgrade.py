@@ -72,6 +72,7 @@ def _reload_spotiflac_modules() -> None:
             or lowered == "spotiflac"
             or lowered.startswith("backend.")
             or lowered == "backend"
+            or lowered.startswith("spotiflac.")
         ):
             del sys.modules[name]
 
