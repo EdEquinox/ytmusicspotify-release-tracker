@@ -1,0 +1,12 @@
+node_modules
+build
+.git
+.gitignore
+Dockerfile*
+.dockerignore
+*.md
+.env
+.env.*
+!.env.example
+npm-debug.log*
+yarn-error.log*

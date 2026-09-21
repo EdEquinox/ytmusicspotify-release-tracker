@@ -11,9 +11,10 @@ import { albumsNew, albumsHistory } from 'albums'
 import { getSettings } from 'state/selectors'
 import { updateReady } from 'state/actions'
 import { Routes } from 'components'
+import { getRuntimeEnv } from 'runtimeEnv'
 import 'styles/index.scss'
 
-Sentry.init({ dsn: process.env.REACT_APP_SENTRY_DSN })
+Sentry.init({ dsn: getRuntimeEnv('REACT_APP_SENTRY_DSN') })
 serviceWorkerRegistration.register({ onUpdate: () => store.dispatch(updateReady()) })
 
 const init = Promise.all([hydrate, albumsNew.load(), albumsHistory.load()])

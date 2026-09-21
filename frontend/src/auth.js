@@ -2,11 +2,12 @@ import { Base64 } from 'js-base64'
 import queryString from 'query-string'
 import moment from 'moment'
 import { ArtistSource, Scope } from 'enums'
+import { getRuntimeEnv } from 'runtimeEnv'
 
 const CODE_CHARSET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~'
 const AUTHORIZE_URL = 'https://accounts.spotify.com/authorize'
 const TOKEN_API_URL = 'https://accounts.spotify.com/api/token'
-const AUTH_REDIRECT_URL = process.env.REACT_APP_URL + '/auth'
+const AUTH_REDIRECT_URL = getRuntimeEnv('REACT_APP_URL') + '/auth'
 const AUTH_DATA_KEY = 'authData'
 
 const { FOLLOWED, SAVED_ALBUMS, SAVED_TRACKS } = ArtistSource
@@ -125,7 +126,7 @@ export function validateAuthRequest(locationSearch, originalNonce) {
 export function startAuthFlow(action, scope, codeChallenge, nonce) {
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: process.env.REACT_APP_SPOTIFY_CLIENT_ID,
+    client_id: getRuntimeEnv('REACT_APP_SPOTIFY_CLIENT_ID'),
     redirect_uri: AUTH_REDIRECT_URL,
     code_challenge_method: 'S256',
     code_challenge: codeChallenge,
@@ -145,7 +146,7 @@ export function startAuthFlow(action, scope, codeChallenge, nonce) {
 export function exchangeCode(code, codeVerifier) {
   return tokenRequest({
     grant_type: 'authorization_code',
-    client_id: process.env.REACT_APP_SPOTIFY_CLIENT_ID,
+    client_id: getRuntimeEnv('REACT_APP_SPOTIFY_CLIENT_ID'),
     redirect_uri: AUTH_REDIRECT_URL,
     code_verifier: codeVerifier,
     code,
@@ -160,7 +161,7 @@ export function exchangeCode(code, codeVerifier) {
 export function getRefreshedToken(refreshToken) {
   return tokenRequest({
     grant_type: 'refresh_token',
-    client_id: process.env.REACT_APP_SPOTIFY_CLIENT_ID,
+    client_id: getRuntimeEnv('REACT_APP_SPOTIFY_CLIENT_ID'),
     refresh_token: refreshToken,
   })
 }

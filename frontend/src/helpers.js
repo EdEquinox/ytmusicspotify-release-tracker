@@ -6,9 +6,10 @@ import { colord } from 'colord'
 import intersect from 'fast_array_intersect'
 import * as Sentry from '@sentry/browser'
 import { AlbumGroup, AlbumGroupIndex, MomentFormat, ReleasesOrder } from 'enums'
+import { getRuntimeEnv } from 'runtimeEnv'
 
 const { ISO_DATE } = MomentFormat
-const NOTIFICATION_ICON = `${process.env.REACT_APP_URL}/android-chrome-192x192.png`
+const NOTIFICATION_ICON = `${getRuntimeEnv('REACT_APP_URL')}/android-chrome-192x192.png`
 const VARIOUS_ARTISTS = 'Various Artist'
 const VARIOUS_ARTISTS_ID = '0LyfQWJT6nXafLPZqxe9Of'
 

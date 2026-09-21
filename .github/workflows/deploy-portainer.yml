@@ -36,6 +36,9 @@ jobs:
         with:
           context: ./frontend
           push: true
+          build-args: |
+            REACT_APP_GIT_SHA=${{ github.sha }}
+            REACT_APP_VERSION=${{ github.ref_name }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.APP_PREFIX }}-frontend:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.APP_PREFIX }}-frontend:${{ github.sha }}

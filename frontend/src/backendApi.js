@@ -1,4 +1,6 @@
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001'
+import { getRuntimeEnv } from 'runtimeEnv'
+
+const BACKEND_URL = getRuntimeEnv('REACT_APP_BACKEND_URL', 'http://localhost:8001')
 
 /**
  * @param {string} path
