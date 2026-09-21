@@ -19,18 +19,11 @@ except Exception:  # pragma: no cover - optional dependency in some environments
 
 def _ytmusic_auth_targets() -> list[Path]:
     auth_path = Path(os.getenv("YTMUSIC_AUTH_FILE", "/data/ytmusic_auth.json")).resolve()
-    reverse_auth_path = Path(
-        os.getenv("REVERSE_YTMUSIC_AUTH_FILE", str(auth_path))
-    ).resolve()
-    targets = [auth_path]
-    if reverse_auth_path not in targets:
-        targets.append(reverse_auth_path)
-    return targets
+    return [auth_path]
 
 
 def _ytmusic_run_validation_probes(client: Any) -> None:
-    """Match worker traffic: reverse uses liked library; forward worker uses search(albums|songs)."""
-    client.get_liked_songs(limit=1)
+    """Probe search paths used by the main release worker."""
     for filter_name in ("albums", "songs"):
         try:
             client.search("ytmusicapi", filter=filter_name, limit=1)

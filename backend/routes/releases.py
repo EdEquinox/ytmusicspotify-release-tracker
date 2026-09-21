@@ -9,7 +9,6 @@ from models.schemas import (
     PlaylistTrackLinksUpsertPayload,
     ReleaseItem,
     SpotifyArtistItem,
-    TidalSpotiflacDownloadPayload,
 )
 
 router = APIRouter(tags=["releases"])
@@ -23,6 +22,11 @@ def list_releases(start_date: str | None = None, end_date: str | None = None) ->
 @router.get("/releases/local")
 def list_local_releases() -> list[ReleaseItem]:
     return releases_ctrl.list_local_releases_from_disk()
+
+
+@router.delete("/releases/local/by-fetched-day/{fetched_day}")
+def delete_local_releases_by_fetched_day(fetched_day: str) -> dict:
+    return releases_ctrl.delete_local_releases_by_fetched_day(fetched_day)
 
 
 @router.post("/releases/local/fetch")
@@ -65,11 +69,6 @@ def search_tidal_artists(q: str, limit: int = 15) -> list[SpotifyArtistItem]:
 @router.get("/releases/tidal/tracks/search")
 def search_tidal_tracks(q: str, limit: int = 15) -> list[AlbumTrackItem]:
     return releases_ctrl.search_tidal_tracks(q, limit)
-
-
-@router.post("/releases/tidal/spotiflac-download")
-def tidal_spotiflac_download(payload: TidalSpotiflacDownloadPayload) -> dict:
-    return releases_ctrl.tidal_spotiflac_download(payload)
 
 
 @router.get("/csv/releases")

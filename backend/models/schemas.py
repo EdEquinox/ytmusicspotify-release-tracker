@@ -125,73 +125,24 @@ class LocalFetchJob(BaseModel):
 class AppSettings(BaseModel):
     playlist_id: str = ""
     ytmusic_user: str = ""
-    reverse_ytmusic_user: str = ""
-    auto_fetch_enabled: bool = False
-    auto_fetch_time: str = "04:00"
-    auto_fetch_window_days: int = 1
-    spotify_include_groups: str = "album,single"
-    spotify_market: str = ""
     local_fetch_spacing_ms: int = 120
     release_workers: int = 10
     worker_idle_seconds: int = 20
     worker_processed_sleep_seconds: int = 10
     worker_backend_retry_seconds: int = 15
     worker_album_audio_only_strict: bool = True
-    spotify_client_id: str = ""
-    spotify_client_secret: str = ""
-    spotify_oauth_client_id: str = ""
-    spotify_oauth_redirect_uri: str = ""
-    reverse_spotify_playlist_id: str = ""
-    reverse_poll_seconds: int = 300
-    reverse_liked_limit: int = 100
-    reverse_spotify_redirect_uri: str = "http://localhost:8080/callback"
-    reverse_spotify_add_to_playlist: bool = True
-    reverse_tidal_only: bool = True
-    reverse_spotiflac_enabled: bool = False
-    reverse_spotiflac_output_dir: str = "/data/downloads"
-    reverse_spotiflac_command_template: str = (
-        'spotiflac "{spotify_url}" "{output_dir}"'
-    )
-    reverse_spotiflac_timeout_seconds: int = 600
-    reverse_spotiflac_loop_minutes: int = 0
-    reverse_track_spacing_ms: int = 0
-    last_auto_fetch_date: str | None = None
     last_releases_fetch_end_date: str | None = None
 
 
 class AppSettingsUpdate(BaseModel):
     playlist_id: str = ""
     ytmusic_user: str = ""
-    reverse_ytmusic_user: str = ""
-    auto_fetch_enabled: bool = False
-    auto_fetch_time: str = "04:00"
-    auto_fetch_window_days: int = Field(default=1, ge=1, le=30)
-    spotify_include_groups: str = "album,single"
-    spotify_market: str = ""
     local_fetch_spacing_ms: int = Field(default=120, ge=0, le=5000)
     release_workers: int = Field(default=10, ge=1, le=30)
     worker_idle_seconds: int = Field(default=20, ge=5, le=3600)
     worker_processed_sleep_seconds: int = Field(default=10, ge=1, le=600)
     worker_backend_retry_seconds: int = Field(default=15, ge=5, le=600)
     worker_album_audio_only_strict: bool = True
-    spotify_client_id: str = ""
-    spotify_client_secret: str = ""
-    spotify_oauth_client_id: str = ""
-    spotify_oauth_redirect_uri: str = ""
-    reverse_spotify_playlist_id: str = ""
-    reverse_poll_seconds: int = Field(default=300, ge=30, le=86400)
-    reverse_liked_limit: int = Field(default=100, ge=1, le=5000)
-    reverse_spotify_redirect_uri: str = "http://localhost:8080/callback"
-    reverse_spotify_add_to_playlist: bool = True
-    reverse_tidal_only: bool = True
-    reverse_spotiflac_enabled: bool = False
-    reverse_spotiflac_output_dir: str = "/data/downloads"
-    reverse_spotiflac_command_template: str = (
-        'spotiflac "{spotify_url}" "{output_dir}"'
-    )
-    reverse_spotiflac_timeout_seconds: int = Field(default=600, ge=10, le=86400)
-    reverse_spotiflac_loop_minutes: int = Field(default=0, ge=0, le=1440)
-    reverse_track_spacing_ms: int = Field(default=0, ge=0, le=30000)
 
 
 class ArtistsImportPayload(BaseModel):
@@ -208,17 +159,3 @@ class HistoricoItem(BaseModel):
     artista: str = Field(min_length=1)
     titulo: str = Field(min_length=1)
     created_at: str | None = None
-
-
-class ReverseSpotifyOAuthCompletePayload(BaseModel):
-    response_url: str = Field(min_length=1)
-
-
-class SpotifySpotiflacDownloadPayload(BaseModel):
-    spotify_url: str = Field(min_length=1)
-
-
-class TidalSpotiflacDownloadPayload(BaseModel):
-    tidal_url: str = Field(min_length=1)
-    artist_name: str = ""
-    track_name: str = ""

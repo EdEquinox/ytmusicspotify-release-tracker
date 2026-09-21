@@ -26,7 +26,6 @@ services:
       SPOTIFY_CLIENT_ID: "${SPOTIFY_CLIENT_ID:-}"
       SPOTIFY_CLIENT_SECRET: "${SPOTIFY_CLIENT_SECRET:-}"
       YTMUSIC_USER: "${YTMUSIC_USER:-}"
-      REVERSE_YTMUSIC_USER: "${REVERSE_YTMUSIC_USER:-}"
     volumes:
       - /opt/ytmusic-release-tracker/data:/data
     healthcheck:
@@ -51,27 +50,6 @@ services:
       BACKEND_URL: "${WORKER_BACKEND_URL:-http://backend:8000}"
       YTMUSIC_AUTH_FILE: "${YTMUSIC_AUTH_FILE:-/data/ytmusic_auth.json}"
       YTMUSIC_USER: "${YTMUSIC_USER:-}"
-    volumes:
-      - /opt/ytmusic-release-tracker/data:/data
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-
-  worker-reverse:
-    image: ${WORKER_REVERSE_IMAGE:-ghcr.io/edequinox/ytmusicspotify-release-tracker-worker-reverse:latest}
-    labels:
-      - com.centurylinklabs.watchtower.enable=true
-    environment:
-      REVERSE_BACKEND_URL: "${REVERSE_WORKER_BACKEND_URL:-http://backend:8000}"
-      REVERSE_YTMUSIC_AUTH_FILE: "${REVERSE_YTMUSIC_AUTH_FILE:-/data/ytmusic_auth.json}"
-      REVERSE_YTMUSIC_USER: "${REVERSE_YTMUSIC_USER:-}"
-      YTMUSIC_USER: "${YTMUSIC_USER:-}"
-      REVERSE_TIDAL_ONLY: "${REVERSE_TIDAL_ONLY:-1}"
-      REVERSE_SPOTIFY_CACHE_PATH: "${REVERSE_SPOTIFY_CACHE_PATH:-/data/spotify_oauth_cache_reverse.json}"
-      REVERSE_SPOTIFLAC_PIP_AUTO_UPGRADE: "${REVERSE_SPOTIFLAC_PIP_AUTO_UPGRADE:-1}"
-      REVERSE_SPOTIFLAC_PIP_UPGRADE_INTERVAL_HOURS: "${REVERSE_SPOTIFLAC_PIP_UPGRADE_INTERVAL_HOURS:-24}"
-      REVERSE_SPOTIFLAC_PIP_SPEC: "${REVERSE_SPOTIFLAC_PIP_SPEC:-spotiflac}"
     volumes:
       - /opt/ytmusic-release-tracker/data:/data
     depends_on:

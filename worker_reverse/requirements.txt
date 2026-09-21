@@ -1,5 +1,0 @@
-requests
-ytmusicapi>=1.12.0
-spotipy
-spotiflac
-mutagen

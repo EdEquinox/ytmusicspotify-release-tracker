@@ -2,13 +2,11 @@
   color: #f5f5f5;
 }
 
-/* Alarga à área útil do Content (compensa padding horizontal 15px). */
+/* Mantém a largura do Content; sem bleed lateral (padding 15px do Content). */
 .LocalPage--full {
   box-sizing: border-box;
-  width: calc(100% + 30px);
+  width: 100%;
   max-width: none;
-  margin-left: -15px;
-  margin-right: -15px;
 }
 
 .LocalPanel {
@@ -155,6 +153,20 @@
   color: #f5f5f5 !important;
 }
 
+.LocalReleaseGrid.columns {
+  margin-left: -0.4rem;
+  margin-right: -0.4rem;
+  margin-top: -0.4rem;
+}
+
+.LocalReleaseGrid.columns:not(:last-child) {
+  margin-bottom: 0.4rem;
+}
+
+.LocalReleaseGrid > .column {
+  padding: 0.4rem;
+}
+
 .LocalDateTitle {
   font-size: 1.15rem !important;
   letter-spacing: 0.3px;
@@ -162,33 +174,128 @@
 
 .LocalReleaseDateBadge {
   display: inline-block;
-  font-size: 0.72rem;
+  flex-shrink: 0;
+  font-size: 0.68rem;
   color: #cbcbcb;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
-  padding: 2px 8px;
-  margin-bottom: 8px;
+  padding: 1px 7px;
+  line-height: 1.4;
+  margin: 0;
 }
 
 .LocalReleaseCard {
   background: #262626 !important;
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: #f5f5f5;
-  min-height: 165px;
-  padding: 0.9rem !important;
+  min-height: 0;
+  padding: 0.55rem 0.55rem 0.55rem 0.65rem !important;
+  border-radius: 10px;
+}
+
+.LocalReleaseCard__row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.LocalReleaseCard__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.LocalReleaseCard__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 18px;
+}
+
+.LocalReleaseCard__info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.LocalReleaseCard__text {
+  min-width: 0;
+  flex: 1;
+}
+
+.LocalReleaseCard__actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.LocalReleaseIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e8e8e8;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.LocalReleaseIconBtn:hover:not(:disabled):not(.LocalReleaseIconBtn--ghost) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  text-decoration: none;
+}
+
+.LocalReleaseIconBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.LocalReleaseIconBtn--ghost {
+  visibility: hidden;
+  pointer-events: none;
+  border: none;
+  background: transparent;
+}
+
+.LocalReleaseIconBtn--sm {
+  width: 26px;
+  height: 26px;
 }
 
 .LocalReleaseTitle {
   color: #f9f9f9;
-  line-height: 1.25;
-  font-size: 0.98rem;
+  line-height: 1.2;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .LocalReleaseArtist {
-  color: #d9d9d9;
-  font-size: 0.86rem;
-  margin-top: 2px;
+  color: #bdbdbd;
+  font-size: 0.78rem;
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .LocalReleaseReason {
@@ -199,19 +306,50 @@
 
 .LocalReleaseType {
   color: #9f9f9f;
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-top: 4px;
+  letter-spacing: 0.4px;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.LocalReleaseRoleBadge {
+  display: inline-block;
+  font-size: 0.65rem;
+  color: #d8d8d8;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  padding: 1px 6px;
+  line-height: 1.3;
+  text-transform: lowercase;
+}
+
+.LocalReleaseRoleBadge--feature {
+  color: #f0c674;
+  border-color: rgba(240, 198, 116, 0.35);
+  background: rgba(240, 198, 116, 0.1);
+  font-weight: 600;
+}
+
+.LocalReleaseCover {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  margin: 0;
 }
 
 .LocalReleaseCover img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
   border-radius: 6px;
+  display: block;
 }
 
 .LocalReleaseCover__placeholder {
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
   border-radius: 6px;
   background: #1f1f1f;
 }
@@ -280,8 +418,16 @@
 .LocalFetchDayHeader {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   margin-bottom: 10px;
+}
+
+.LocalFetchDayHeader__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .LocalFetchDayTitle {
@@ -362,57 +508,91 @@
 }
 
 .LocalTrackList {
-  margin-top: 12px !important;
+  margin-top: 8px !important;
   border-top: 1px dashed rgba(255, 255, 255, 0.12);
-  padding-top: 10px;
+  padding-top: 8px;
+}
+
+.LocalTrackRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 .LocalTrackRow__title {
   color: #dedede;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   line-height: 1.2;
   margin-right: 8px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .LocalArtistGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
 }
 
 .LocalArtistCardCompact {
   background: #262626;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
-  padding: 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  align-items: flex-start;
-  min-height: 148px;
+  gap: 8px;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.LocalArtistCardCompact__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
 }
 
 .LocalArtistRow__media {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   min-width: 0;
-  width: 100%;
+  flex: 1;
+}
+
+.LocalArtistRow__text {
+  min-width: 0;
+  flex: 1;
 }
 
 .LocalArtistRow__name {
   color: #f3f3f3;
   font-weight: 600;
-  font-size: 0.92rem;
-  margin-bottom: 4px;
+  font-size: 0.88rem;
+  margin: 0 0 4px;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .LocalArtistRow__id {
-  color: #bdbdbd;
-  font-size: 0.72rem;
   display: inline-block;
   max-width: 100%;
+  margin: 0;
+  padding: 1px 8px;
+  color: #e8e8e8;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -421,15 +601,46 @@
 .LocalArtistRow__actions {
   display: flex;
   gap: 6px;
+  flex-shrink: 0;
+  align-items: center;
   white-space: nowrap;
+}
+
+.LocalArtistCardCompact__tidal {
   width: 100%;
-  justify-content: flex-end;
-  margin-top: auto;
+}
+
+.LocalArtistCardCompact__tidal .label {
+  margin-bottom: 4px;
+}
+
+.LocalArtistCardCompact__tidalRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.LocalArtistCardCompact__tidalRow .input,
+.LocalArtistCardCompact__tidalRow input {
+  flex: 1;
+  min-width: 0;
+  min-height: 30px !important;
+  height: 30px;
+  font-size: 0.8rem;
+}
+
+.LocalActionButton--compact {
+  min-height: 28px !important;
+  padding: 0.2rem 0.55rem !important;
+  font-size: 0.75rem !important;
+  flex-shrink: 0;
 }
 
 .LocalArtistRow__avatar {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
   border-radius: 50%;
   object-fit: cover;
   background: #1f1f1f;
@@ -535,6 +746,6 @@
 
 @media (max-width: 768px) {
   .LocalArtistGrid {
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
 }

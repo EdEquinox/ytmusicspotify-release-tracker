@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, VerticalLayout, Header, Content, ButtonLink } from 'components/common'
+import { Button, VerticalLayout, Header, HeaderNav, Content } from 'components/common'
 import { listErrors, resolveError, updateErrorLinks } from 'backendApi'
 
 function SyncErrors() {
@@ -116,24 +116,8 @@ function SyncErrors() {
 
   return (
     <VerticalLayout>
-      <Header title="Erros de Sincronizacao">
-        <div className="Header__right">
-          <ButtonLink to="/" title="Releases" icon="fas fa-music" compact>
-            Releases
-          </ButtonLink>
-          <ButtonLink to="/artists" title="Gerir artistas" icon="fas fa-users" compact>
-            Artistas
-          </ButtonLink>
-          <ButtonLink to="/settings" title="Settings" icon="fas fa-gear" compact>
-            Settings
-          </ButtonLink>
-          <ButtonLink to="/history" title="Historico de downloads" icon="fas fa-clock-rotate-left" compact>
-            Historico
-          </ButtonLink>
-          <ButtonLink to="/setup" title="Guia de configuracao" icon="fas fa-circle-info" compact>
-            Guia
-          </ButtonLink>
-        </div>
+      <Header>
+        <HeaderNav />
       </Header>
       <Content>
         <div className="LocalPage">

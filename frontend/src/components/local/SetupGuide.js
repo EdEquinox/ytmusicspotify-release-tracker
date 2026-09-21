@@ -1,109 +1,79 @@
-import { ButtonLink, Content, Header, VerticalLayout } from 'components/common'
+import { Content, Header, HeaderNav, VerticalLayout } from 'components/common'
 
 function SetupGuide() {
   return (
     <VerticalLayout>
-      <Header title="Guia de Configuracao">
-        <div className="Header__right">
-          <ButtonLink to="/" title="Releases" icon="fas fa-music" compact>
-            Releases
-          </ButtonLink>
-          <ButtonLink to="/artists" title="Gerir artistas" icon="fas fa-users" compact>
-            Artistas
-          </ButtonLink>
-          <ButtonLink to="/errors" title="Erros de sincronizacao" icon="fas fa-triangle-exclamation" compact>
-            Erros
-          </ButtonLink>
-          <ButtonLink to="/history" title="Historico de downloads" icon="fas fa-clock-rotate-left" compact>
-            Historico
-          </ButtonLink>
-          <ButtonLink to="/settings" title="Settings" icon="fas fa-gear" compact>
-            Settings
-          </ButtonLink>
-        </div>
+      <Header>
+        <HeaderNav />
       </Header>
       <Content>
         <div className="LocalPage">
           <div className="LocalPanel mb-4">
-            <h3 className="title is-6 has-text-light">1) Requisitos</h3>
+            <h3 className="title is-6 has-text-light">Resumo</h3>
             <p className="has-text-grey-light">
-              Instala Docker e Docker Compose. Esta app foi pensada para correr localmente com containers.
+              Segues artistas no Tidal, vês lancamentos novos, e envias faixas para uma playlist do YouTube Music. O
+              worker trata da fila em segundo plano.
             </p>
           </div>
 
           <div className="LocalPanel mb-4">
-            <h3 className="title is-6 has-text-light">2) Preparar .env</h3>
-            <p className="has-text-grey-light">
-              Copia <code>.env.example</code> para <code>.env</code>. Para Tidal + YTMusic basta auth, backend URL e
-              volumes de <code>data/</code>.
-            </p>
+            <h3 className="title is-6 has-text-light">1) Settings</h3>
             <ul className="has-text-grey-light">
-              <li>
-                <code>YTMUSIC_AUTH_FILE</code> (normalmente <code>/data/ytmusic_auth.json</code>) e{' '}
-                <code>REACT_APP_BACKEND_URL</code> se o frontend nao falar com o backend na porta por defeito.
-              </li>
+              <li>Define o Playlist ID do YouTube Music de destino.</li>
+              <li>Se usares conta brand, preenche o user ID do YTMusic.</li>
+              <li>Importa o JSON de auth do YTMusic e valida-o.</li>
             </ul>
           </div>
 
           <div className="LocalPanel mb-4">
-            <h3 className="title is-6 has-text-light">3) Auth do YouTube Music e playlist</h3>
+            <h3 className="title is-6 has-text-light">2) Login Tidal</h3>
             <p className="has-text-grey-light">
-              Importa o JSON de auth em <code>Settings</code> ou coloca o ficheiro em{' '}
-              <code>data/ytmusic_auth.json</code>. Define o <strong>Playlist ID</strong> de destino no mesmo ecra.
-            </p>
-            <p className="has-text-grey-light">
-              Em <code>Releases</code> inicia sessao Tidal (login por dispositivo) para puxar lancamentos; em{' '}
-              <code>Gerir Artistas</code> associa o ID Tidal a cada artista.
+              Em <strong>Releases</strong>, inicia sessao Tidal (login por dispositivo). A sessao expira; quando o
+              fetch falhar por autenticacao, volta a fazer login.
             </p>
           </div>
 
           <div className="LocalPanel mb-4">
-            <h3 className="title is-6 has-text-light">4) Arrancar app</h3>
-            <pre className="has-text-grey-light">docker compose up --build</pre>
+            <h3 className="title is-6 has-text-light">3) Artistas</h3>
             <p className="has-text-grey-light">
-              Frontend: <code>http://127.0.0.1:3001</code>
+              Em <strong>Artistas</strong>, pesquisa no Tidal e adiciona quem queres seguir. Cada artista precisa de ID
+              Tidal para o fetch encontrar lancamentos.
+            </p>
+          </div>
+
+          <div className="LocalPanel mb-4">
+            <h3 className="title is-6 has-text-light">4) Fetch de releases</h3>
+            <ol className="has-text-grey-light">
+              <li>Em <strong>Releases</strong>, escolhe o intervalo de datas e faz Fetch.</li>
+              <li>Os resultados aparecem agrupados por dia em que o fetch correu.</li>
+              <li>
+                Usa filtros (pesquisa, dia de fetch, excluir remix / various artists / duplicados) para afinar a lista.
+              </li>
+              <li>
+                Para limpar um batch antigo, usa <strong>Delete</strong> na linha da data desse fetch.
+              </li>
+            </ol>
+          </div>
+
+          <div className="LocalPanel mb-4">
+            <h3 className="title is-6 has-text-light">5) Enviar para a playlist</h3>
+            <p className="has-text-grey-light">
+              Em cada release (ou faixa expandida de um album), adiciona a playlist. Isso mete o item na fila; o worker
+              procura no YouTube Music e adiciona a playlist definida em Settings.
             </p>
           </div>
 
           <div className="LocalPanel">
-            <h3 className="title is-6 has-text-light">5) Troubleshooting rapido</h3>
+            <h3 className="title is-6 has-text-light">6) Erros e historico</h3>
             <ul className="has-text-grey-light">
-              <li>Se o fetch Tidal falhar ou for lento, aumenta o delay entre artistas e reduz workers em Settings.</li>
-              <li>Se settings nao gravarem, corrige permissoes da pasta data no host.</li>
-              <li>Se o worker nao adicionar musicas, valida auth YTMusic e playlist ID.</li>
+              <li>
+                <strong>Erros</strong> — falhas ao sincronizar com o YouTube Music (podes corrigir links manuais e
+                resolver).
+              </li>
+              <li>
+                <strong>Historico</strong> — o que o worker ja processou com sucesso.
+              </li>
             </ul>
-          </div>
-
-          <div className="LocalPanel mt-4">
-            <h3 className="title is-6 has-text-light">6) Acesso fora de casa (Cloudflare Tunnel)</h3>
-            <p className="has-text-grey-light">
-              A proteção de acesso fica no Cloudflare (Worker Basic Auth ou Access). A app não tem login próprio.
-            </p>
-            <ol className="has-text-grey-light">
-              <li>
-                Cria dois hostnames no tunnel: frontend (3001) e backend (8001), ambos com o teu Worker de auth.
-              </li>
-              <li>
-                Ajusta <code>REACT_APP_URL</code> e <code>REACT_APP_BACKEND_URL</code> para os URLs HTTPS públicos.
-              </li>
-              <li>
-                Os workers Docker continuam a usar <code>http://backend:8000</code> na rede interna (sem passar pelo
-                Cloudflare).
-              </li>
-            </ol>
-          </div>
-
-          <div className="LocalPanel mt-4">
-            <h3 className="title is-6 has-text-light">7) Deploy em Portainer (servidor)</h3>
-            <ol className="has-text-grey-light">
-              <li>Publica as 3 imagens num registry (frontend/backend/worker).</li>
-              <li>Copia <code>.env.portainer.example</code> para variaveis do Stack e ajusta dominios/ports.</li>
-              <li>Cria no servidor: <code>/opt/ytmusic-release-tracker/data</code>.</li>
-              <li>Garante permissoes de escrita nessa pasta para evitar erro em settings.json.</li>
-              <li>
-                No Portainer, cria um Stack com o ficheiro <code>docker-compose.portainer.yml</code> e faz deploy.
-              </li>
-            </ol>
           </div>
         </div>
       </Content>

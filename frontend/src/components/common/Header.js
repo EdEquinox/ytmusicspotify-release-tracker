@@ -10,7 +10,7 @@ import classNames from 'classnames'
  *   children?: React.ReactNode
  * }} props
  */
-function Header({ title = 'Spotify Release List', className, compact, children }) {
+function Header({ title = 'Music Release Tracker', className, compact, children }) {
   return (
     <nav className={classNames('Header', className)}>
       <div

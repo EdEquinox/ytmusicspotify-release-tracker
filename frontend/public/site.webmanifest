@@ -1,6 +1,6 @@
 {
-  "name": "Spotify Release List",
-  "short_name": "Releases",
+  "name": "Music Release Tracker",
+  "short_name": "Release Tracker",
   "description": "Display list of Spotify releases from artists you follow",
   "icons": [
     {

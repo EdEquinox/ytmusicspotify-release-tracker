@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, ButtonLink, Content, Header, Input, VerticalLayout } from 'components/common'
+import { Button, Content, Header, HeaderNav, Input, VerticalLayout } from 'components/common'
 import {
   addReleaseToCsv,
   addTrackToCsv,
+  deleteLocalReleasesByFetchedDay,
   getLocalReleasesFetchJob,
   getSettings,
   getTidalAlbumTracks,
@@ -11,7 +12,6 @@ import {
   listCsvReleases,
   listLocalReleases,
   searchTidalTracks,
-  spotiflacDownloadTidalTrack,
   startLocalReleasesFetch,
   startTidalDeviceLogin,
 } from 'backendApi'
@@ -42,11 +42,11 @@ function Releases() {
   const [trackSearchQuery, setTrackSearchQuery] = useState('')
   const [trackSearchResults, setTrackSearchResults] = useState([])
   const [trackSearchLoading, setTrackSearchLoading] = useState(false)
-  const [downloadingTrackId, setDownloadingTrackId] = useState('')
   const [tidalLoginOpen, setTidalLoginOpen] = useState(false)
   const [tidalLoginPayload, setTidalLoginPayload] = useState(null)
   const [tidalLoginStatus, setTidalLoginStatus] = useState('')
   const [filtersDropdownOpen, setFiltersDropdownOpen] = useState(false)
+  const [deletingFetchDay, setDeletingFetchDay] = useState('')
 
   const loadData = async () => {
     setLoading(true)
@@ -178,6 +178,28 @@ function Releases() {
     setCollapsedFetchDays((previous) => ({ ...previous, [dayKey]: !previous[dayKey] }))
   }
 
+  const onDeleteFetchDay = async (fetchDay, count) => {
+    const label = fetchDay === 'sem-fetch-day' ? 'Sem dia de fetch' : fetchDay
+    const confirmed = window.confirm(
+      `Apagar ${count} release(s) do batch "${label}"? Esta acao nao pode ser desfeita.`
+    )
+    if (!confirmed) return
+
+    setError('')
+    setInfoMessage('')
+    setDeletingFetchDay(fetchDay)
+    try {
+      const result = await deleteLocalReleasesByFetchedDay(fetchDay)
+      setInfoMessage(`Apagadas ${result.deleted} release(s) de ${label}.`)
+      if (fetchDayFilter === fetchDay) setFetchDayFilter('all')
+      await loadData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDeletingFetchDay('')
+    }
+  }
+
   const onAddToCsv = async (release) => {
     setError('')
     setInfoMessage('')
@@ -259,33 +281,6 @@ function Releases() {
       setTrackSearchResults([])
     } finally {
       setTrackSearchLoading(false)
-    }
-  }
-
-  const onSpotiflacDownload = async (track) => {
-    const tidalUrl = track.tidal_url
-    if (!tidalUrl) {
-      setError('Esta faixa não tem URL Tidal (volta a pesquisar).')
-      return
-    }
-    setDownloadingTrackId(track.id)
-    setError('')
-    setInfoMessage('')
-    try {
-      const res = await spotiflacDownloadTidalTrack({
-        tidal_url: tidalUrl,
-        artist_name: track.artist_name,
-        track_name: track.name,
-      })
-      setInfoMessage(
-        res?.message
-          ? `${res.message} (pasta: ${res.output_dir || '/data/downloads'})`
-          : `Download concluido (pasta: ${res?.output_dir || '/data/downloads'})`
-      )
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setDownloadingTrackId('')
     }
   }
 
@@ -423,33 +418,12 @@ function Releases() {
 
   return (
     <VerticalLayout>
-      <Header title="Releases locais">
-        <div className="Header__right">
-          <ButtonLink to="/artists" title="Gerir artistas" icon="fas fa-users" compact>
-            Artistas
-          </ButtonLink>
-          <ButtonLink to="/errors" title="Erros de sincronizacao" icon="fas fa-triangle-exclamation" compact>
-            Erros
-          </ButtonLink>
-          <ButtonLink to="/history" title="Historico de downloads" icon="fas fa-clock-rotate-left" compact>
-            Historico
-          </ButtonLink>
-          <ButtonLink to="/settings" title="Settings" icon="fas fa-gear" compact>
-            Settings
-          </ButtonLink>
-          <ButtonLink to="/setup" title="Guia de configuracao" icon="fas fa-circle-info" compact>
-            Guia
-          </ButtonLink>
-        </div>
+      <Header>
+        <HeaderNav />
       </Header>
       <Content>
         <div className="LocalPage LocalPage--full">
           <div className="LocalPanel LocalPanel--toolbar LocalReleasesToolbar mb-4">
-            <p className="is-size-7 has-text-grey mb-2">
-              Intervalo do fetch (início = último «Fim» guardado após fetch concluído), pesquisa Tidal e botões Puxar /
-              Atualizar. Lista: usa <strong>Filtros</strong> para artista/release, exclusões e dia do fetch. SpotiFLAC
-              nas Settings.
-            </p>
             <div className="LocalTopRow LocalReleasesToolbar__row">
               <div className="LocalTopRow LocalReleasesToolbar__main">
                 <div className="field LocalTopRow__date">
@@ -577,13 +551,6 @@ function Releases() {
                             ? 'A adicionar...'
                             : 'Adicionar à playlist'}
                       </Button>
-                      <Button
-                        className="LocalActionButton"
-                        onClick={() => onSpotiflacDownload(track)}
-                        disabled={Boolean(downloadingTrackId)}
-                      >
-                        {downloadingTrackId === track.id ? 'A descarregar...' : 'Descarregar'}
-                      </Button>
                     </div>
                   </div>
                 ))}
@@ -638,104 +605,175 @@ function Releases() {
             {groupedByFetchedDay.map(([fetchDay, dayReleases]) => (
               <div className="mb-4" key={fetchDay}>
                 <div className="LocalFetchDayHeader">
-                  <Button className="LocalActionButton" onClick={() => toggleFetchDay(fetchDay)}>
-                    {collapsedFetchDays[fetchDay] ? 'Expand' : 'Collapse'}
+                  <div className="LocalFetchDayHeader__left">
+                    <Button className="LocalActionButton" onClick={() => toggleFetchDay(fetchDay)}>
+                      {collapsedFetchDays[fetchDay] ? 'Expand' : 'Collapse'}
+                    </Button>
+                    <p className="LocalFetchDayTitle">
+                      Fetch: {fetchDay === 'sem-fetch-day' ? 'Sem dia de fetch' : fetchDay} (
+                      {dayReleases.length})
+                    </p>
+                  </div>
+                  <Button
+                    danger
+                    className="LocalActionButton"
+                    disabled={deletingFetchDay === fetchDay}
+                    onClick={() => onDeleteFetchDay(fetchDay, dayReleases.length)}
+                  >
+                    {deletingFetchDay === fetchDay ? 'A apagar...' : 'Delete'}
                   </Button>
-                  <p className="LocalFetchDayTitle">
-                    Fetch: {fetchDay === 'sem-fetch-day' ? 'Sem dia de fetch' : fetchDay} ({dayReleases.length})
-                  </p>
                 </div>
                 {!collapsedFetchDays[fetchDay] && (
-                  <div className="columns is-multiline">
-                    {dayReleases.map((release) => (
-                      <div className="column is-half-tablet is-one-third-desktop is-one-quarter-widescreen" key={release.id}>
-                        <article className="box LocalReleaseCard">
-                    <p className="LocalReleaseDateBadge">{release.release_date || 'Sem data'}</p>
-                    <div className="media">
-                      <div className="media-left">
-                        <figure className="image is-64x64 LocalReleaseCover">
-                          {release.image_url ? (
-                            <img src={release.image_url} alt={release.name} />
-                          ) : (
-                            <div className="LocalReleaseCover__placeholder" />
-                          )}
-                        </figure>
-                      </div>
-                      <div className="media-content">
-                        <p className="has-text-weight-semibold LocalReleaseTitle">{release.name}</p>
-                        <p className="LocalReleaseArtist">{release.artist_name}</p>
-                        {Array.isArray(release.matched_artists) && release.matched_artists.length > 0 && (
-                          <p
-                            className="LocalReleaseReason"
-                            style={{ fontWeight: release.has_non_primary_match ? 700 : 400 }}
-                          >
-                            Incluida por: {release.matched_artists.join(', ')}
-                            {release.has_non_primary_match ? ' (participacao, nao principal)' : ''}
-                          </p>
-                        )}
-                        <p className="LocalReleaseType">{release.album_type}</p>
-                      </div>
-                    </div>
-                    <div className="mt-3 LocalReleaseActionsRow">
-                      <div className="LocalReleaseActionsLeft">
-                        {release.tidal_url && (
-                          <a href={release.tidal_url} target="_blank" rel="noreferrer" className="LocalStreamLinkButton">
-                            Abrir no Tidal
-                          </a>
-                        )}
-                        {(['album', 'compilation', 'single'].includes(release.album_type)) && (
-                          <Button
-                            onClick={() => onToggleAlbum(release)}
-                            disabled={loadingAlbumId === release.id}
-                            className="LocalActionButton"
-                          >
-                            {expandedAlbums[release.id] ? 'Collapse' : 'Expand'}
-                          </Button>
-                        )}
-                      </div>
-                      <Button
-                        onClick={() => onAddToCsv(release)}
-                        disabled={csvReleaseIds.has(release.id) || addingReleaseId === release.id}
-                        className="LocalActionButton LocalActionButton--primary"
-                      >
-                        {csvReleaseIds.has(release.id)
-                          ? 'No CSV'
-                          : addingReleaseId === release.id
-                            ? 'A adicionar...'
-                            : 'Adicionar à playlist'}
-                      </Button>
-                    </div>
-                    {expandedAlbums[release.id] && (
-                      <div className="mt-3 LocalTrackList">
-                        {loadingAlbumId === release.id && (
-                          <p className="is-size-7 has-text-grey">A carregar faixas...</p>
-                        )}
-                        {(albumTracks[release.id] || []).map((track) => (
-                          <div
-                            key={track.id}
-                            className="is-flex is-justify-content-space-between is-align-items-center mb-1"
-                          >
-                            <span className="LocalTrackRow__title">
-                              {track.name} - {track.artist_name}
-                            </span>
-                            <Button
-                              onClick={() => onAddTrackToCsv(track)}
-                              disabled={csvReleaseIds.has(track.id) || addingReleaseId === track.id}
-                              className="LocalActionButton"
-                            >
-                              {csvReleaseIds.has(track.id)
-                                ? 'No CSV'
-                                : addingReleaseId === track.id
-                                  ? 'A adicionar...'
-                                  : 'Adicionar à playlist'}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                        </article>
-                      </div>
-                    ))}
+                  <div className="columns is-multiline is-mobile LocalReleaseGrid">
+                    {dayReleases.map((release) => {
+                      const canExpand = ['album', 'compilation', 'single'].includes(release.album_type)
+                      const isExpanded = Boolean(expandedAlbums[release.id])
+                      const inPlaylist = csvReleaseIds.has(release.id)
+                      const adding = addingReleaseId === release.id
+                      const showRoleBadge =
+                        Array.isArray(release.matched_artists) && release.matched_artists.length > 0
+                      const isPrincipal = showRoleBadge && !release.has_non_primary_match
+
+                      return (
+                        <div
+                          className="column is-full-mobile is-one-quarter-tablet is-one-fifth-desktop is-2-widescreen"
+                          key={release.id}
+                        >
+                          <article className="box LocalReleaseCard">
+                            <div className="LocalReleaseCard__row">
+                              <div className="LocalReleaseCard__main">
+                                <div className="LocalReleaseCard__meta">
+                                  <span className="LocalReleaseDateBadge">
+                                    {release.release_date || 'Sem data'}
+                                  </span>
+                                  <span className="LocalReleaseType">
+                                    {release.album_type || 'release'}
+                                  </span>
+                                  {showRoleBadge && (
+                                    <span
+                                      className={
+                                        isPrincipal
+                                          ? 'LocalReleaseRoleBadge'
+                                          : 'LocalReleaseRoleBadge LocalReleaseRoleBadge--feature'
+                                      }
+                                      title={
+                                        isPrincipal
+                                          ? `Incluida por: ${release.matched_artists.join(', ')}`
+                                          : `Incluida por: ${release.matched_artists.join(', ')} (participacao)`
+                                      }
+                                    >
+                                      {isPrincipal ? 'principal' : 'participacao'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="LocalReleaseCard__info">
+                                  <figure className="LocalReleaseCover">
+                                    {release.image_url ? (
+                                      <img src={release.image_url} alt={release.name} />
+                                    ) : (
+                                      <div className="LocalReleaseCover__placeholder" />
+                                    )}
+                                  </figure>
+                                  <div className="LocalReleaseCard__text">
+                                    <p className="LocalReleaseTitle" title={release.name}>
+                                      {release.name}
+                                    </p>
+                                    <p className="LocalReleaseArtist" title={release.artist_name}>
+                                      {release.artist_name}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="LocalReleaseCard__actions">
+                                {release.tidal_url ? (
+                                  <a
+                                    href={release.tidal_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="LocalReleaseIconBtn"
+                                    title="Abrir no Tidal"
+                                  >
+                                    <i className="fas fa-up-right-from-square" aria-hidden="true" />
+                                  </a>
+                                ) : (
+                                  <span className="LocalReleaseIconBtn LocalReleaseIconBtn--ghost" aria-hidden="true" />
+                                )}
+                                <button
+                                  type="button"
+                                  className="LocalReleaseIconBtn"
+                                  title={
+                                    inPlaylist
+                                      ? 'Ja na playlist'
+                                      : adding
+                                        ? 'A adicionar...'
+                                        : 'Adicionar a playlist'
+                                  }
+                                  disabled={inPlaylist || adding}
+                                  onClick={() => onAddToCsv(release)}
+                                >
+                                  <i
+                                    className={inPlaylist ? 'fas fa-check' : 'fas fa-list'}
+                                    aria-hidden="true"
+                                  />
+                                </button>
+                                {canExpand ? (
+                                  <button
+                                    type="button"
+                                    className="LocalReleaseIconBtn"
+                                    title={isExpanded ? 'Fechar faixas' : 'Ver faixas'}
+                                    disabled={loadingAlbumId === release.id}
+                                    onClick={() => onToggleAlbum(release)}
+                                  >
+                                    <i
+                                      className={isExpanded ? 'fas fa-compress' : 'fas fa-expand'}
+                                      aria-hidden="true"
+                                    />
+                                  </button>
+                                ) : (
+                                  <span className="LocalReleaseIconBtn LocalReleaseIconBtn--ghost" aria-hidden="true" />
+                                )}
+                              </div>
+                            </div>
+                            {isExpanded && (
+                              <div className="LocalTrackList">
+                                {loadingAlbumId === release.id && (
+                                  <p className="is-size-7 has-text-grey">A carregar faixas...</p>
+                                )}
+                                {(albumTracks[release.id] || []).map((track) => (
+                                  <div key={track.id} className="LocalTrackRow">
+                                    <span className="LocalTrackRow__title">
+                                      {track.name} - {track.artist_name}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="LocalReleaseIconBtn LocalReleaseIconBtn--sm"
+                                      title={
+                                        csvReleaseIds.has(track.id)
+                                          ? 'Ja na playlist'
+                                          : addingReleaseId === track.id
+                                            ? 'A adicionar...'
+                                            : 'Adicionar a playlist'
+                                      }
+                                      disabled={
+                                        csvReleaseIds.has(track.id) || addingReleaseId === track.id
+                                      }
+                                      onClick={() => onAddTrackToCsv(track)}
+                                    >
+                                      <i
+                                        className={
+                                          csvReleaseIds.has(track.id) ? 'fas fa-check' : 'fas fa-list'
+                                        }
+                                        aria-hidden="true"
+                                      />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </article>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>

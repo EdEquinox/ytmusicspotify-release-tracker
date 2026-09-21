@@ -2,6 +2,3 @@ fastapi
 uvicorn[standard]
 ytmusicapi>=1.12.0
 tidalapi
-spotiflac
-mutagen
-pydoll-python

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 from threading import Thread
@@ -20,7 +19,6 @@ from models.schemas import (
     ReleaseItem,
     ReleaseSyncJob,
     SpotifyArtistItem,
-    TidalSpotiflacDownloadPayload,
 )
 from services.jobs_service import _run_release_sync_job, _start_local_fetch_job
 from services.releases_service import (
@@ -37,7 +35,6 @@ from services.releases_service import (
     _write_fetch_state,
 )
 from services.settings_service import _effective_release_workers, _read_settings
-from services.spotiflac_runner import _download_with_spotiflac, _normalize_spotiflac_template
 from services.tidal_auth_service import (
     get_tidal_device_login_status,
     load_tidal_session,
@@ -109,6 +106,33 @@ def list_releases_catalog(start_date: str | None, end_date: str | None) -> list[
 def list_local_releases_from_disk() -> list[ReleaseItem]:
     releases = _read_json_list(RELEASES_FILE)
     return [ReleaseItem(**item) for item in releases]
+
+
+def delete_local_releases_by_fetched_day(fetched_day: str) -> dict[str, int | str]:
+    """Remove local catalog releases whose fetched_at date matches ``fetched_day`` (YYYY-MM-DD).
+
+    Use ``sem-fetch-day`` to delete releases without a usable fetched_at day.
+    """
+    day = (fetched_day or "").strip()
+    if not day:
+        raise HTTPException(status_code=400, detail="fetched_day is required")
+
+    releases = _read_json_list(RELEASES_FILE)
+    kept: list[dict] = []
+    removed = 0
+    for item in releases:
+        fetched_at = str(item.get("fetched_at") or "").strip()
+        item_day = fetched_at[:10] if fetched_at else "sem-fetch-day"
+        if item_day == day:
+            removed += 1
+        else:
+            kept.append(item)
+
+    if removed == 0:
+        raise HTTPException(status_code=404, detail=f"No releases found for fetch day {day}")
+
+    _write_json_list(RELEASES_FILE, kept)
+    return {"deleted": removed, "fetched_day": day, "remaining": len(kept)}
 
 
 def start_fetch_local_job(period: str, start_date: str | None, end_date: str | None) -> dict:
@@ -443,48 +467,3 @@ def search_tidal_tracks(q: str, limit: int = 15) -> list[AlbumTrackItem]:
             )
         )
     return out
-
-
-def tidal_spotiflac_download(payload: TidalSpotiflacDownloadPayload) -> dict[str, str | bool]:
-    tidal_url = payload.tidal_url.strip()
-    if not tidal_url:
-        raise HTTPException(status_code=400, detail="tidal_url is required")
-
-    title = (payload.track_name or "").strip() or "Unknown"
-    primary_artist = (payload.artist_name or "").strip() or "Unknown"
-    spotify_artists_list = [primary_artist]
-    spotify_album_artists_list = [primary_artist]
-
-    with state._settings_lock:
-        settings = _read_settings()
-
-    output_dir = (settings.reverse_spotiflac_output_dir or "/data/downloads").strip() or "/data/downloads"
-    command_template = _normalize_spotiflac_template(settings.reverse_spotiflac_command_template)
-    timeout_seconds = max(int(settings.reverse_spotiflac_timeout_seconds or 600), 10)
-    loop_minutes = max(int(settings.reverse_spotiflac_loop_minutes or 0), 0)
-
-    filename_format = (
-        os.getenv("REVERSE_SPOTIFLAC_FILENAME_FORMAT", "{title} - {artist}").strip() or "{title} - {artist}"
-    )
-    use_artist_subfolders = os.getenv("REVERSE_SPOTIFLAC_USE_ARTIST_SUBFOLDERS", "true").strip().lower() != "false"
-    use_album_subfolders = os.getenv("REVERSE_SPOTIFLAC_USE_ALBUM_SUBFOLDERS", "true").strip().lower() != "false"
-    services = ["tidal"]
-
-    ok, detail = _download_with_spotiflac(
-        spotify_url=tidal_url,
-        artist=primary_artist,
-        title=title,
-        output_dir=output_dir,
-        command_template=command_template,
-        timeout_seconds=timeout_seconds,
-        services=services,
-        filename_format=filename_format,
-        use_artist_subfolders=use_artist_subfolders,
-        use_album_subfolders=use_album_subfolders,
-        loop_minutes=loop_minutes,
-        spotify_artists_list=spotify_artists_list,
-        spotify_album_artists_list=spotify_album_artists_list,
-    )
-    if not ok:
-        raise HTTPException(status_code=502, detail=detail)
-    return {"ok": True, "message": detail or "Download concluido.", "output_dir": output_dir}

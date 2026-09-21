@@ -1,30 +1,35 @@
 .Header {
   display: flex;
   align-items: center;
-  padding: 15px;
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 12px 15px;
   flex: 0 0 auto;
+  height: 64px;
+  min-height: 64px;
+  box-sizing: border-box;
+  overflow: hidden;
 
   &__title {
-    min-height: 40px;
     display: flex;
     align-items: center;
-    justify-content: flex-end;
     margin-bottom: 0 !important;
-    margin-right: 20px;
+    margin-right: 0;
     user-select: none;
-    flex: 0 0 225px;
-
-    @include touch {
-      margin-right: 0;
-      text-align: left;
-      flex: 0 1 auto;
-    }
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 1.25rem !important;
+    line-height: 1.2 !important;
   }
 
   &__left {
     display: flex;
     align-items: center;
     gap: 15px;
+    flex-shrink: 0;
 
     @include mobile {
       gap: 10px;
@@ -37,9 +42,59 @@
     display: flex;
     align-items: center;
     gap: 15px;
+    flex-shrink: 0;
 
     @include mobile {
       gap: 10px;
     }
+  }
+}
+
+.HeaderNav {
+  gap: 6px;
+  flex-wrap: nowrap;
+
+  @include mobile {
+    gap: 4px;
+  }
+
+  &__tab.button {
+    border-radius: 8px;
+    height: 34px;
+    min-height: 34px;
+    max-height: 34px;
+    padding-left: 0.65rem;
+    padding-right: 0.65rem;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #cfcfcf !important;
+    box-shadow: none !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+
+    .icon {
+      margin: 0 !important;
+    }
+
+    .icon:first-child:last-child {
+      margin: 0 !important;
+    }
+
+    .icon:first-child:not(:last-child) {
+      margin-right: 0.4rem !important;
+      margin-left: 0 !important;
+    }
+  }
+
+  &__tab--active.button,
+  &__tab.button.HeaderNav__tab--active {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+    color: #f5f5f5 !important;
+  }
+
+  &__tab.button:hover:not(.HeaderNav__tab--active) {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #fff !important;
   }
 }

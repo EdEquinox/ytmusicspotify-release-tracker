@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from threading import Thread
 from uuid import uuid4
 
@@ -23,8 +23,6 @@ from .settings_service import (
     _effective_local_fetch_spacing_ms,
     _effective_release_workers,
     _persist_last_releases_fetch_end_date,
-    _read_settings,
-    _write_settings,
 )
 from .tidal_auth_service import load_tidal_session
 
@@ -205,11 +203,6 @@ def _run_local_fetch_job(
         _update_local_fetch_job(job_id, status="failed", error=str(exc))
 
 
-def _has_active_local_fetch_job() -> bool:
-    with state._local_fetch_jobs_lock:
-        return any(job.get("status") in {"pending", "running"} for job in state._local_fetch_jobs.values())
-
-
 def _start_local_fetch_job(period: str, start_date: str | None = None, end_date: str | None = None) -> str:
     job_id = str(uuid4())
     now = datetime.now(UTC).isoformat()
@@ -234,40 +227,3 @@ def _start_local_fetch_job(period: str, start_date: str | None = None, end_date:
         daemon=True,
     ).start()
     return job_id
-
-
-def _is_valid_hhmm(value: str) -> bool:
-    try:
-        hour_str, minute_str = value.split(":", 1)
-        hour = int(hour_str)
-        minute = int(minute_str)
-    except Exception:
-        return False
-    return 0 <= hour <= 23 and 0 <= minute <= 59
-
-
-def _auto_fetch_loop() -> None:
-    while True:
-        try:
-            with state._settings_lock:
-                settings = _read_settings()
-
-            if (
-                settings.auto_fetch_enabled
-                and settings.auto_fetch_window_days >= 1
-                and _is_valid_hhmm(settings.auto_fetch_time)
-            ):
-                now = datetime.now(UTC)
-                hhmm = now.strftime("%H:%M")
-                today = now.date().isoformat()
-                if hhmm >= settings.auto_fetch_time and settings.last_auto_fetch_date != today:
-                    if not _has_active_local_fetch_job():
-                        end_date = today
-                        start_date = (now - timedelta(days=settings.auto_fetch_window_days)).date().isoformat()
-                        _start_local_fetch_job("custom", start_date, end_date)
-                        settings.last_auto_fetch_date = today
-                        with state._settings_lock:
-                            _write_settings(settings)
-        except Exception:
-            pass
-        time.sleep(30)

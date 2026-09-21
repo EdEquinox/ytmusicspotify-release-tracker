@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Input, VerticalLayout, Header, Content, ButtonLink } from 'components/common'
+import { Button, Input, VerticalLayout, Header, HeaderNav, Content } from 'components/common'
 import {
   createArtist,
   deleteArtist,
@@ -189,40 +189,22 @@ function ManageArtists() {
 
   return (
     <VerticalLayout>
-      <Header title="Gerir Artistas">
-        <div className="Header__right">
-          <ButtonLink to="/" title="Releases" icon="fas fa-music" compact>
-            Releases
-          </ButtonLink>
-          <ButtonLink to="/errors" title="Erros de sincronizacao" icon="fas fa-triangle-exclamation" compact>
-            Erros
-          </ButtonLink>
-          <ButtonLink to="/history" title="Historico de downloads" icon="fas fa-clock-rotate-left" compact>
-            Historico
-          </ButtonLink>
-          <ButtonLink to="/settings" title="Settings" icon="fas fa-gear" compact>
-            Settings
-          </ButtonLink>
-          <ButtonLink to="/setup" title="Guia de configuracao" icon="fas fa-circle-info" compact>
-            Guia
-          </ButtonLink>
-        </div>
+      <Header>
+        <HeaderNav />
       </Header>
       <Content>
         <div className="LocalPage">
         <div className="LocalPanel LocalPanel--toolbar mb-5">
           <div className="LocalTopRow">
-            <div className="LocalTopRow__actions">
-              <Button onClick={onRefreshArtistsInfo} primary disabled={refreshingArtists || loading}>
-                {refreshingArtists ? 'A atualizar...' : 'Atualizar info artistas'}
-              </Button>
-            </div>
             <div className="LocalTopRow__search">
               <Input value={searchQuery} onChange={onSearchQueryChange} placeholder="Nome no Tidal" />
             </div>
             <div className="LocalTopRow__actions">
               <Button onClick={onSearch} primary disabled={searchLoading || searchQuery.trim().length < 2}>
                 {searchLoading ? 'A pesquisar...' : 'Pesquisar'}
+              </Button>
+              <Button onClick={onRefreshArtistsInfo} primary disabled={refreshingArtists || loading}>
+                {refreshingArtists ? 'A atualizar...' : 'Atualizar info artistas'}
               </Button>
             </div>
           </div>
@@ -232,42 +214,35 @@ function ManageArtists() {
           <div className="LocalArtistGrid mb-5">
             {searchResults.map((artist) => (
               <article className="LocalArtistCardCompact" key={artist.id}>
-                <div className="LocalArtistRow__media">
-                  {artist.image_url || artist.image_url ? (
-                    <img
-                      className="LocalArtistRow__avatar"
-                      src={artist.image_url || artist.image_url}
-                      alt={artist.name}
-                    />
-                  ) : (
-                    <div className="LocalArtistRow__avatar LocalArtistRow__avatar--placeholder" />
-                  )}
-                  <div>
-                    <p className="LocalArtistRow__name">{artist.name}</p>
-                    <code className="LocalArtistRow__id">{artist.id}</code>
+                <div className="LocalArtistCardCompact__row">
+                  <div className="LocalArtistRow__media">
+                    {artist.image_url ? (
+                      <img className="LocalArtistRow__avatar" src={artist.image_url} alt={artist.name} />
+                    ) : (
+                      <div className="LocalArtistRow__avatar LocalArtistRow__avatar--placeholder" />
+                    )}
+                    <div className="LocalArtistRow__text">
+                      <p className="LocalArtistRow__name">{artist.name}</p>
+                      <code className="LocalArtistRow__id">{artist.id}</code>
+                    </div>
+                  </div>
+                  <div className="LocalArtistRow__actions">
+                    <Button
+                      onClick={() => onAddFromSearch(artist)}
+                      className="LocalActionButton LocalActionButton--primary LocalActionButton--compact"
+                    >
+                      Adicionar
+                    </Button>
                   </div>
                 </div>
-                <Button
-                  onClick={() => onAddFromSearch(artist)}
-                  className="LocalActionButton LocalActionButton--primary"
-                >
-                  Adicionar
-                </Button>
               </article>
             ))}
           </div>
         )}
 
-        <div className="LocalPanel">
         <div className="field">
-          <label className="label has-text-light">Filtrar artistas</label>
           <Input value={query} onChange={onFilterQueryChange} placeholder="Pesquisar por nome ou id" />
-        </div>
-        <p className="is-size-7 has-text-grey mb-3">
-          Para puxar releases do Tidal, define o <strong>ID Tidal</strong> do artista (número na URL do perfil).
-          Em listas antigas o número Tidal pode estar em «id» com «spotify_id»; o fetch de releases usa os dois.
-        </p>
-        </div>
+        </div>        
 
         {error && <p className="has-text-danger">{error}</p>}
         {infoMessage && <p className="has-text-success">{infoMessage}</p>}
@@ -278,24 +253,33 @@ function ManageArtists() {
           <div className="LocalArtistGrid">
             {filteredArtists.map((artist) => (
               <article className="LocalArtistCardCompact" key={artist.id}>
-                <div className="LocalArtistRow__media">
-                  {artist.image_url || artist.image_url ? (
-                    <img
-                      className="LocalArtistRow__avatar"
-                      src={artist.image_url || artist.image_url}
-                      alt={artist.name}
-                    />
-                  ) : (
-                    <div className="LocalArtistRow__avatar LocalArtistRow__avatar--placeholder" />
-                  )}
-                  <div>
-                    <p className="LocalArtistRow__name">{artist.name}</p>
-                    <code className="LocalArtistRow__id">{artist.id}</code>
+                <div className="LocalArtistCardCompact__row">
+                  <div className="LocalArtistRow__media">
+                    {artist.image_url ? (
+                      <img className="LocalArtistRow__avatar" src={artist.image_url} alt={artist.name} />
+                    ) : (
+                      <div className="LocalArtistRow__avatar LocalArtistRow__avatar--placeholder" />
+                    )}
+                    <div className="LocalArtistRow__text">
+                      <p className="LocalArtistRow__name">{artist.name}</p>
+                      <code className="LocalArtistRow__id">{artist.id}</code>
+                    </div>
+                  </div>
+                  <div className="LocalArtistRow__actions">
+                    <button
+                      type="button"
+                      className="LocalReleaseIconBtn"
+                      title="Apagar"
+                      aria-label={`Apagar ${artist.name}`}
+                      onClick={() => onDelete(artist.id)}
+                    >
+                      <span className="fas fa-trash" aria-hidden="true" />
+                    </button>
                   </div>
                 </div>
-                <div className="field mt-2 mb-2">
+                <div className="LocalArtistCardCompact__tidal field mb-0">
                   <label className="label has-text-light is-size-7">ID Tidal (releases)</label>
-                  <div className="is-flex" style={{ gap: '8px', flexWrap: 'wrap' }}>
+                  <div className="LocalArtistCardCompact__tidalRow">
                     <Input
                       value={tidalDrafts[String(artist.id)] ?? ''}
                       onChange={onTidalDraftInputChange(artist.id)}
@@ -303,17 +287,12 @@ function ManageArtists() {
                     />
                     <Button
                       onClick={() => onSaveTidalId(artist.id)}
-                      className="LocalActionButton"
+                      className="LocalActionButton LocalActionButton--compact"
                       disabled={savingTidalId === String(artist.id)}
                     >
-                      {savingTidalId === String(artist.id) ? 'A guardar…' : 'Guardar ID Tidal'}
+                      {savingTidalId === String(artist.id) ? '…' : 'Guardar'}
                     </Button>
                   </div>
-                </div>
-                <div className="LocalArtistRow__actions">
-                  <Button onClick={() => onDelete(artist.id)} className="LocalActionButton">
-                    Apagar
-                  </Button>
                 </div>
               </article>
             ))}

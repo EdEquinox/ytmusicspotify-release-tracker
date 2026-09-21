@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ButtonLink, Content, Header, Input, VerticalLayout } from 'components/common'
+import { Content, Header, HeaderNav, Input, VerticalLayout } from 'components/common'
 import { listHistorico } from 'backendApi'
 
 function HistoryDownloads() {
@@ -38,24 +38,8 @@ function HistoryDownloads() {
 
   return (
     <VerticalLayout>
-      <Header title="Historico de Downloads">
-        <div className="Header__right">
-          <ButtonLink to="/" title="Releases" icon="fas fa-music" compact>
-            Releases
-          </ButtonLink>
-          <ButtonLink to="/artists" title="Gerir artistas" icon="fas fa-users" compact>
-            Artistas
-          </ButtonLink>
-          <ButtonLink to="/errors" title="Erros de sincronizacao" icon="fas fa-triangle-exclamation" compact>
-            Erros
-          </ButtonLink>
-          <ButtonLink to="/settings" title="Settings" icon="fas fa-gear" compact>
-            Settings
-          </ButtonLink>
-          <ButtonLink to="/setup" title="Guia de configuracao" icon="fas fa-circle-info" compact>
-            Guia
-          </ButtonLink>
-        </div>
+      <Header>
+        <HeaderNav />
       </Header>
       <Content>
         <div className="LocalPage">

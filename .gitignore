@@ -17,4 +17,5 @@ fixflac.py
 fixoneflac.py
 fixartistalbum.py
 scripts/
+test/
 .github/

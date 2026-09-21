@@ -64,11 +64,6 @@ export const searchTidalTracks = (query, limit = 15) =>
   request(
     `/releases/tidal/tracks/search?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}`
   )
-export const spotiflacDownloadTidalTrack = ({ tidal_url, artist_name = '', track_name = '' }) =>
-  request('/releases/tidal/spotiflac-download', {
-    method: 'POST',
-    body: JSON.stringify({ tidal_url, artist_name, track_name }),
-  })
 export const startLocalReleasesFetch = ({ period = '', startDate = '', endDate = '' }) => {
   const params = new URLSearchParams()
   if (period) params.set('period', period)
@@ -89,6 +84,8 @@ export const getTidalDeviceStatus = () => request('/releases/tidal/device/status
 export const getTidalAlbumTracks = (albumId) =>
   request(`/releases/tidal/albums/${encodeURIComponent(albumId)}/tracks`)
 export const listLocalReleases = () => request('/releases/local')
+export const deleteLocalReleasesByFetchedDay = (fetchedDay) =>
+  request(`/releases/local/by-fetched-day/${encodeURIComponent(fetchedDay)}`, { method: 'DELETE' })
 export const fetchArtistReleases = (artistId, period, force = false) =>
   request(
     `/artistas/${encodeURIComponent(artistId)}/releases/fetch?period=${encodeURIComponent(period)}&force=${force}`,
@@ -126,9 +123,4 @@ export const importYTMusicAuth = (authJson) =>
 export const validateYTMusicAuth = () =>
   request('/settings/ytmusic-auth/validate', {
     method: 'POST',
-  })
-export const completeReverseSpotifyOAuth = (responseUrl) =>
-  request('/settings/reverse-spotify-oauth/complete', {
-    method: 'POST',
-    body: JSON.stringify({ response_url: responseUrl }),
   })
