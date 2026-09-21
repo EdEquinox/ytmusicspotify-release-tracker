@@ -231,15 +231,58 @@ def _fetch_artist_releases_tidal(
     return releases
 
 
+def _resolve_tidal_album_id(album_id_or_url: str) -> str | None:
+    """Aceita ID Tidal numérico ou URL (.../album/12345)."""
+    raw = (album_id_or_url or "").strip()
+    if not raw:
+        return None
+    if re.fullmatch(r"\d+", raw):
+        return raw
+    match = re.search(r"(?:tidal\.com)/(?:browse/)?album/(\d+)", raw, flags=re.IGNORECASE)
+    if match:
+        return match.group(1)
+    match = re.search(r"/album/(\d+)", raw, flags=re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return None
+
+
 def _fetch_tidal_album_tracks(session: Any, album_id: str) -> list[AlbumTrackItem]:
     from tidalapi.album import Album
+    from tidalapi.exceptions import ObjectNotFound
 
-    album_id_clean = album_id.strip()
-    if not album_id_clean:
-        return []
-    al = Album(session, album_id_clean)
+    resolved = _resolve_tidal_album_id(album_id)
+    if not resolved:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "ID de álbum Tidal inválido. Esperado um número ou URL Tidal "
+                f"(recebido: {album_id!r}). Releases antigos Spotify não têm faixas Tidal."
+            ),
+        )
+
+    try:
+        al = Album(session, resolved)
+    except ObjectNotFound as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Álbum Tidal {resolved} não encontrado na API Tidal.",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Falha ao abrir álbum Tidal: {exc}") from exc
+
     out: list[AlbumTrackItem] = []
-    for tr in al.tracks():
+    try:
+        track_iter = al.tracks()
+    except ObjectNotFound as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Faixas do álbum Tidal {resolved} não encontradas.",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Falha ao listar faixas Tidal: {exc}") from exc
+
+    for tr in track_iter:
         tid = getattr(tr, "id", None)
         if tid is None:
             continue

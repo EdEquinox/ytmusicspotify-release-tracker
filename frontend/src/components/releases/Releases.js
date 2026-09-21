@@ -226,14 +226,17 @@ function Releases() {
 
     setLoadingAlbumId(release.id)
     try {
-      const useTidalTracks =
-        release.source === 'tidal' ||
-        Boolean(release.tidal_url) ||
-        /^\d+$/.test(String(release.id ?? '').trim())
-      const tracks = useTidalTracks ? await getTidalAlbumTracks(release.id) : []
-      if (!useTidalTracks) {
-        setInfoMessage('Lista de faixas só para álbuns Tidal (ID numérico ou link Tidal).')
+      const rawId = String(release.id ?? '').trim()
+      const fromUrl = String(release.tidal_url || '').match(/\/album\/(\d+)/i)
+      const tidalAlbumId = /^\d+$/.test(rawId) ? rawId : fromUrl?.[1] || ''
+      if (!tidalAlbumId) {
+        setAlbumTracks((previous) => ({ ...previous, [release.id]: [] }))
+        setInfoMessage(
+          'Este release não tem ID Tidal numérico (provavelmente registo antigo Spotify). Faz um fetch Tidal novo ou apaga o batch antigo.'
+        )
+        return
       }
+      const tracks = await getTidalAlbumTracks(tidalAlbumId)
       setAlbumTracks((previous) => ({ ...previous, [release.id]: tracks }))
     } catch (err) {
       setError(err.message)

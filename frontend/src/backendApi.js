@@ -8,15 +8,25 @@ const BACKEND_URL = getRuntimeEnv('REACT_APP_BACKEND_URL', 'http://localhost:800
  * @returns {Promise<any>}
  */
 async function request(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase()
+  /** @type {Record<string, string>} */
+  const headers = { ...(options.headers || {}) }
+  const hasBody = options.body != null && options.body !== ''
+  if (hasBody && !headers['content-type'] && !headers['Content-Type']) {
+    headers['content-type'] = 'application/json'
+  }
+
   let response
   try {
     response = await fetch(`${BACKEND_URL}${path}`, {
-      headers: { 'content-type': 'application/json', ...(options.headers || {}) },
       ...options,
+      method,
+      headers,
     })
   } catch (err) {
     const hint =
-      ' Verifica se o backend está a correr (na pasta backend: uvicorn main:app --reload --port 8001) e se REACT_APP_BACKEND_URL aponta para o URL certo.'
+      ' Verifica se o backend está a correr e se REACT_APP_BACKEND_URL é o IP/domínio que o browser usa (não 127.0.0.1). Testa: ' +
+      `${BACKEND_URL}/health`
     const msg = err instanceof Error ? err.message : String(err)
     throw new Error(`Sem ligação ao servidor (${BACKEND_URL}): ${msg}.${hint}`)
   }
